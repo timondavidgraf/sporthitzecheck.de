@@ -1,6 +1,8 @@
 import type { ErrorEvent } from "@sentry/nextjs";
+import type { HttpBodyCollectionTarget } from "@sentry/core";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
+const noHttpBodies: HttpBodyCollectionTarget[] = [];
 
 /** Gemeinsame Sentry-Optionen: Fehler + Tracing, keine Identifikatoren (DSGVO). */
 export function sentryPrivacyOptions() {
@@ -10,8 +12,13 @@ export function sentryPrivacyOptions() {
     sendDefaultPii: false as const,
     tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
     dataCollection: {
-      userInfo: false as const,
-      httpBodies: [] as string[],
+      userInfo: false,
+      cookies: false,
+      httpHeaders: { request: false, response: false },
+      httpBodies: noHttpBodies,
+      urlQueryParams: false,
+      databaseQueryData: false,
+      stackFrameVariables: false,
     },
     beforeSend(event: ErrorEvent) {
       if (event.user) {
