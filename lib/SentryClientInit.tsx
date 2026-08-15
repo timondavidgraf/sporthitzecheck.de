@@ -7,7 +7,7 @@ import { sentryPrivacyOptions } from "@/lib/sentryOptions";
 /**
  * Zusätzliche Client-Absicherung: Sentry startet nur im Browser
  * und nur, wenn eine DSN gesetzt ist. Die eigentliche Init-Datei
- * ist sentry.client.config.ts (wird von Next.js automatisch geladen).
+ * ist instrumentation-client.ts (wird von Next.js automatisch geladen).
  */
 export function SentryClientInit() {
   useEffect(() => {

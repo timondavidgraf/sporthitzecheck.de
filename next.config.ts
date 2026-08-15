@@ -4,7 +4,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextConfig = {};
 
 export default withSentryConfig(nextConfig, {
-  silent: true,
+  org: "entfaltungszone",
+  project: "javascript-nextjs",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
   disableLogger: true,
   automaticVercelMonitors: false,
   sourcemaps: {

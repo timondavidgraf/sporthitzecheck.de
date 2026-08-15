@@ -1,12 +1,18 @@
 import type { ErrorEvent } from "@sentry/nextjs";
 
-/** Gemeinsame Sentry-Optionen: keine IP, keine Identifikatoren. */
+const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN;
+
+/** Gemeinsame Sentry-Optionen: Fehler + Tracing, keine Identifikatoren (DSGVO). */
 export function sentryPrivacyOptions() {
   return {
-    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN,
-    enabled: Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN ?? process.env.SENTRY_DSN),
+    dsn,
+    enabled: Boolean(dsn),
     sendDefaultPii: false as const,
-    tracesSampleRate: 0.05,
+    tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
+    dataCollection: {
+      userInfo: false as const,
+      httpBodies: [] as string[],
+    },
     beforeSend(event: ErrorEvent) {
       if (event.user) {
         delete event.user.ip_address;
