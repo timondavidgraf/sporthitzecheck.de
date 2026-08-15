@@ -6,7 +6,7 @@
  * sind dann UI-Interpolation, keine offizielle Verbandszahl.
  */
 
-import type { AgeGroup, ColorCode, Surface } from "./wbgtCalculator";
+import type { AgeBand, ColorCode, PerformanceLevel, Surface } from "./wbgtCalculator";
 import {
   sourcesRegistry,
   type SourceConfidence,
@@ -100,26 +100,36 @@ export interface SportDefinition {
 }
 
 /**
- * Offset von der Profi-Verbandsschwelle. Nur wenn `profi` gesetzt ist.
+ * Altersabzug von der Verbandsschwelle. Nur wenn `profi` gesetzt ist.
  *
- * Bewusst eine Vorsichtsentscheidung, keine physiologische Aussage: Die
- * Annahme, Kinder seien hitzeempfindlicher als Erwachsene, gilt als überholt
- * (Rowland 2008; Falk & Dotan 2008; Lawrenz 2019). Der ACSM Position Stand
- * formuliert es selbst so, dass die Datenlage diesen Glauben nicht stützt, es
- * aber „prudent“ sei, Kinder als Risikogruppe zu behandeln. Genau dieser Linie
- * folgt die App. Kein Verband quantifiziert einen Alters-Offset in °C – die
- * Werte sind gesetzt, nicht abgeleitet, und entsprechend als Näherung
- * gekennzeichnet.
+ * Jugend: −1 °C wie in der ursprünglichen Vorgabe – Vorsicht, keine Physiologie.
+ * Die Annahme, Kinder seien hitzeempfindlicher, gilt als überholt (Rowland 2008;
+ * Falk & Dotan 2008). Der ACSM hält es dennoch für vernünftig, sie als
+ * Risikogruppe zu behandeln.
  *
- * Der eigentlich belegte Unterschied ist Akklimatisierung, nicht Alter: Profis
- * im Turnierbetrieb sind hitzeangepasst, ein Kreisliga-Kader im ersten warmen
- * Mai-Training nicht.
+ * 65+: dieselbe −1 °C. Die Richtung ist besser belegt (geringere Schweißrate und
+ * Hautdurchblutung ab etwa 60 Jahren; CDC 65+; Meade et al. 2023), der Betrag
+ * ist gesetzt, kein Verbandswert.
  */
-export const AGE_THRESHOLD_OFFSETS: Record<AgeGroup, number> = {
-  recreational: -3.0,
-  youth: -4.0,
+export const AGE_BAND_OFFSETS: Record<AgeBand, number> = {
+  youth: -1.0,
+  adult: 0,
+  senior: -1.0,
+};
+
+/**
+ * Leistungsabzug: nur Erwachsene können „Professionell / Akklimatisiert“ wählen.
+ * Jugend und 65+ werden auf Breitensport gezwungen.
+ *
+ * −2 °C für Breitensport ist eine grobe Analogie zum Abstand Elite vs.
+ * nicht akklimatisierte Freizeitsportler, kleiner als der frühere Mischwert −3.
+ */
+export const PERFORMANCE_OFFSETS: Record<PerformanceLevel, number> = {
+  recreational: -2.0,
   elite: 0,
 };
+
+export const DEFAULT_PERFORMANCE: PerformanceLevel = "recreational";
 
 /**
  * Ampelgrenzen für Sportarten ohne eigenen Verbandswert.
@@ -162,89 +172,77 @@ export function intensityFamily(sport: Sport): IntensityFamily {
   return MATCH_SPORTS.has(sport) ? "match" : "endurance";
 }
 
+/** Bewässerung gilt für Sportplätze, nicht für Straße/Weg beim Joggen oder Radfahren. */
+export function sportAllowsWatering(sport: Sport): boolean {
+  return sport !== "jogging" && sport !== "cycling";
+}
+
 /**
  * Sportartübergreifend, ACGIH-Analogie. Sicherheits-Näherung, nicht für Sport
- * validiert – gilt genauso wie der Alters-Offset, die Kombination erhöht die
- * Sicherheit nicht. Labels sind sportartspezifisch (siehe INTENSITY_LABELS).
+ * validiert – gilt genauso wie Alters- und Leistungs-Offset, die Kombination
+ * erhöht die Sicherheit nicht.
+ *
+ * Offsets: lockeres Training mehr Pausen → Schwellen höher; Wettkampf/Pflichtspiel
+ * weniger Pausen → Schwellen tiefer. Intensives Training und Freundschaftsspiel
+ * liegen dazwischen.
  */
 export const INTENSITY_LEVELS: readonly IntensityModifier[] = [
   {
     id: "easy",
-    label: "Lockeres Auslaufen/Technik (viele Pausen)",
+    label: "Lockeres Training",
     short: "Locker",
     schwellenOffset: 1.5,
     quelle_id: "acgih_tlv",
   },
   {
     id: "normal",
-    label: "Normales Training (regelmäßige Pausen)",
-    short: "Normal",
+    label: "Intensives Training / Freundschaftsspiel",
+    short: "Intensiv",
     schwellenOffset: 0,
     quelle_id: "acgih_tlv",
   },
   {
     id: "intense",
-    label: "Wettkampf/intensive Belastung (wenig Pausen)",
-    short: "Intensiv",
+    label: "Wettkampf / Pflichtspiel",
+    short: "Wettkampf",
     schwellenOffset: -1.5,
     quelle_id: "acgih_tlv",
   },
 ];
 
-const INTENSITY_LABELS: Record<
-  IntensityFamily,
-  Record<IntensityLevel, { label: string; short: string }>
-> = {
-  match: {
-    easy: { label: "Training (viele Pausen)", short: "Training" },
-    normal: { label: "Spiel (regelmäßige Pausen)", short: "Spiel" },
-    intense: { label: "Turnier / intensives Spiel (wenig Pausen)", short: "Turnier" },
-  },
-  endurance: {
-    easy: { label: "Lockeres Auslaufen/Technik (viele Pausen)", short: "Locker" },
-    normal: { label: "Normales Training (regelmäßige Pausen)", short: "Normal" },
-    intense: { label: "Wettkampf (wenig Pausen)", short: "Wettkampf" },
-  },
-};
-
 export const DEFAULT_INTENSITY: IntensityLevel = "normal";
 
 export function intensityModifier(
   level: IntensityLevel,
-  sport?: Sport
+  _sport?: Sport
 ): IntensityModifier {
-  const base = INTENSITY_LEVELS.find((item) => item.id === level) ?? INTENSITY_LEVELS[1];
-  if (!sport) return base;
-  return { ...base, ...INTENSITY_LABELS[intensityFamily(sport)][level] };
+  return INTENSITY_LEVELS.find((item) => item.id === level) ?? INTENSITY_LEVELS[1];
 }
 
 export function intensityThresholdOffset(level: IntensityLevel): number {
   return intensityModifier(level).schwellenOffset;
 }
 
-/** Label ohne Klammerzusatz, z. B. „Spiel“ / „Normales Training“. */
+/** Anzeigename der Intensität, z. B. „Wettkampf / Pflichtspiel“. */
 export function intensityHeadline(level: IntensityLevel, sport?: Sport): string {
-  return intensityModifier(level, sport).label.replace(/\s*\(.*\)$/, "");
+  return intensityModifier(level, sport).label;
 }
 
-/** Handlungsempfehlung und Dauer: aus der Intensität abgeleitet. */
+/** Handlungsempfehlung: Training vs. Spiel/Wettkampf, aus der Intensität. */
 export function eventTypeFromIntensity(
   sport: Sport,
   level: IntensityLevel
 ): "training" | "match" | "tournament" {
   if (intensityFamily(sport) === "match") {
     if (level === "easy") return "training";
-    if (level === "normal") return "match";
-    return "tournament";
+    return "match";
   }
   return level === "intense" ? "match" : "training";
 }
 
 export function durationForIntensity(sport: Sport, level: IntensityLevel): number {
   if (intensityFamily(sport) === "match") {
-    if (level === "easy") return 90;
-    if (level === "normal") return 120;
-    return 180;
+    return level === "easy" ? 90 : 120;
   }
   return level === "intense" ? 120 : 90;
 }
@@ -523,7 +521,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
   },
   athletics: {
     id: "athletics",
-    label: "Leichtathletik/Wettkampf",
+    label: "Leichtathletik",
     short: "Leichtathletik",
     surfaces: ["tartan", "asphalt", "grass", "gravel"],
     untergruende: {
@@ -559,7 +557,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
       interpolationNote: ACSM_FALLBACK_NOTE,
     },
     hinweisIntern:
-      "Eigene Kategorie getrennt von Leichtathletik/Wettkampf, da andere Zielgruppe (Freizeitläufer statt Elite-Athleten)",
+      "Eigene Kategorie getrennt von Leichtathletik, da andere Zielgruppe (Freizeitläufer statt Elite-Athleten)",
   },
   fieldhockey: {
     id: "fieldhockey",
@@ -599,8 +597,8 @@ export const SPORT_ORDER: readonly Sport[] = [
   "tennis",
   "beachvolleyball",
   "cycling",
-  "athletics",
   "jogging",
+  "athletics",
   "fieldhockey",
 ];
 
@@ -625,23 +623,52 @@ export function baseBoundsForSport(sport: Sport): AmpelBounds {
   return bounds;
 }
 
-export function ageThresholdOffset(sport: Sport, ageGroup: AgeGroup): number {
+export function ageThresholdOffset(sport: Sport, ageGroup: AgeBand): number {
   if (!usesProfiThresholds(sport)) return 0;
-  return AGE_THRESHOLD_OFFSETS[ageGroup];
+  return AGE_BAND_OFFSETS[ageGroup];
+}
+
+export function effectivePerformanceLevel(
+  ageGroup: AgeBand,
+  performanceLevel: PerformanceLevel
+): PerformanceLevel {
+  return ageGroup === "adult" ? performanceLevel : "recreational";
+}
+
+export function performanceThresholdOffset(
+  sport: Sport,
+  ageGroup: AgeBand,
+  performanceLevel: PerformanceLevel = DEFAULT_PERFORMANCE
+): number {
+  if (!usesProfiThresholds(sport)) return 0;
+  return PERFORMANCE_OFFSETS[effectivePerformanceLevel(ageGroup, performanceLevel)];
+}
+
+export function populationOffset(
+  sport: Sport,
+  ageGroup: AgeBand,
+  performanceLevel: PerformanceLevel = DEFAULT_PERFORMANCE
+): number {
+  return (
+    ageThresholdOffset(sport, ageGroup) +
+    performanceThresholdOffset(sport, ageGroup, performanceLevel)
+  );
 }
 
 /**
- * Angewandte Ampelgrenzen: Verband/Fallback + Alters-Offset + Intensitäts-Offset.
- * Beide Offsets sind Näherungen; zusammen sind sie nicht sicherer.
+ * Angewandte Ampelgrenzen: Verband/Fallback + Alter + Leistung + Intensität.
+ * Die Offsets sind Näherungen; zusammen sind sie nicht sicherer.
  */
 export function appliedBounds(
   sport: Sport,
-  ageGroup: AgeGroup,
-  intensity: IntensityLevel = DEFAULT_INTENSITY
+  ageGroup: AgeBand,
+  intensity: IntensityLevel = DEFAULT_INTENSITY,
+  performanceLevel: PerformanceLevel = DEFAULT_PERFORMANCE
 ): AmpelBounds {
   const base = baseBoundsForSport(sport);
   const offset =
-    ageThresholdOffset(sport, ageGroup) + intensityThresholdOffset(intensity);
+    populationOffset(sport, ageGroup, performanceLevel) +
+    intensityThresholdOffset(intensity);
   return {
     gruen_max: base.gruen_max + offset,
     gelb_max: base.gelb_max + offset,

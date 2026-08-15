@@ -6,9 +6,12 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  Award,
+  Calendar,
   CalendarClock,
   Check,
   ChevronDown,
+  Clock,
   CloudSun,
   Droplets,
   Gauge,
@@ -16,14 +19,16 @@ import {
   LocateFixed,
   Loader2,
   MapPin,
+  Medal,
   Pencil,
   Search,
   ThermometerSun,
+  Timer,
   Trees,
   Trophy,
   Users,
 } from "lucide-react";
-import type { AgeGroup, Shadow, Surface } from "@/lib/wbgtCalculator";
+import type { AgeBand, PerformanceLevel, Shadow, Surface } from "@/lib/wbgtCalculator";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
@@ -34,23 +39,26 @@ import {
   getSurfaceConfig,
   hasNumericSurfaceOffset,
   showsSurfaceSourceInfo,
+  sportAllowsWatering,
 } from "@/lib/sportsConfig";
 import { isGoogleQuotaOrOutage, messageForGoogleStatus } from "@/lib/googleStatus";
 import {
-  AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
   DEFAULT_AGE,
   DEFAULT_INTENSITY,
+  DEFAULT_PERFORMANCE,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
-  ageGroupHint,
+  ageOptionsForSport,
   durationForIntensity,
-  intensityHint,
   intensityOptionsForSport,
+  isPerformanceLocked,
   parseAgeGroup,
   parseIntensity,
   parseOption,
+  parsePerformanceLevel,
+  PERFORMANCE_OPTIONS,
   SHADOW_OPTIONS,
   shadowFactorLabel,
   SPORT_OPTIONS,
@@ -67,12 +75,13 @@ import {
 
 interface FormState {
   sport: Sport;
-  ageGroup: AgeGroup;
+  ageGroup: AgeBand;
+  performanceLevel: PerformanceLevel;
   intensity: IntensityLevel;
   surface: Surface;
   shadow: Shadow;
   watered: boolean;
-  /** Beginn der Einheit im Format eines `datetime-local`-Inputs ("2026-08-13T14:30") */
+  /** Beginn der Einheit als lokaler Stempel ("2026-08-13T14:30") */
   startTime: string;
   /** Ende der Einheit als reine Uhrzeit ("16:00") – immer am Tag des Beginns */
   endTime: string;
@@ -92,18 +101,42 @@ const MAX_DURATION_MIN = 6 * 60;
 
 /** Zeiten nur in 15-Minuten-Schritten – stündliche Wetterdaten machen genauer sinnlos. */
 const QUARTER_MIN = 15;
-const TIME_STEP_SECONDS = QUARTER_MIN * 60;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
+function minutesToTime(totalMinutes: number): string {
+  return `${pad(Math.floor(totalMinutes / 60))}:${pad(totalMinutes % 60)}`;
+}
+
+function quarterTimes(fromMin: number, toMin: number): string[] {
+  const times: string[] = [];
+  for (let minutes = fromMin; minutes <= toMin; minutes += QUARTER_MIN) {
+    times.push(minutesToTime(minutes));
+  }
+  return times;
+}
+
+const CLOCK_OPTIONS = quarterTimes(0, 23 * 60 + 45);
+const DURATION_OPTIONS = quarterTimes(QUARTER_MIN, MAX_DURATION_MIN);
+
+function toDateValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 function toInputValue(date: Date): string {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
+  return `${toDateValue(date)}T${toTimeValue(date)}`;
 }
 
 function toTimeValue(date: Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function startDatePart(startTime: string): string {
+  return startTime.slice(0, 10);
+}
+
+function startClockPart(startTime: string): string {
+  return startTime.slice(11, 16);
 }
 
 /** Rundet Minuten auf das nächste Viertel; bleibt im selben Kalendertag. */
@@ -132,17 +165,15 @@ function roundEndInput(value: string): string {
   return `${pad(Math.floor(rounded / 60))}:${pad(rounded % 60)}`;
 }
 
-/** Untere Grenze: heute 00:00 – rückwärts liegt keine Vorhersage vor. */
-function minStartTime(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return toInputValue(d);
+/** Untere Grenze: heute – rückwärts liegt keine Vorhersage vor. */
+function minStartDate(): string {
+  return toDateValue(new Date());
 }
 
-function maxStartTime(): string {
+function maxStartDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + MAX_DAYS_AHEAD);
-  return toInputValue(d);
+  return toDateValue(d);
 }
 
 /** Endzeit als vollstaendiger Zeitstempel am Tag des Beginns. */
@@ -190,6 +221,7 @@ function hoursUntil(startTime: string): number {
 const DEFAULT_FORM: FormState = {
   sport: DEFAULT_SPORT,
   ageGroup: DEFAULT_AGE,
+  performanceLevel: DEFAULT_PERFORMANCE,
   intensity: DEFAULT_INTENSITY,
   surface: DEFAULT_SURFACE,
   shadow: DEFAULT_SHADOW,
@@ -269,6 +301,10 @@ function sanitize(raw: unknown): FormState {
   return {
     sport,
     ageGroup: parseAgeGroup(v.ageGroup),
+    performanceLevel: parsePerformanceLevel(
+      (v as { performanceLevel?: unknown }).performanceLevel,
+      v.ageGroup
+    ),
     intensity: parseIntensity(v.intensity, (v as { eventType?: unknown }).eventType),
     // Untergrund muss zur Sportart passen (z.B. altes "turf_black" bei Tennis)
     surface: surfaceForSport(sport, surface),
@@ -359,6 +395,18 @@ export default function HomePage() {
       return { ...prev, startTime, endTime: addMinutesSameDay(start, minutes) };
     });
 
+  const changeDate = (date: string) => {
+    const clock = startClockPart(form.startTime) || "00:00";
+    if (!date) return;
+    changeStart(`${date}T${clock}`);
+  };
+
+  const changeStartClock = (clock: string) => {
+    const date = startDatePart(form.startTime);
+    if (!date || !clock) return;
+    changeStart(`${date}T${clock}`);
+  };
+
   const changeEnd = (raw: string) =>
     setForm((prev) => {
       const endTime = roundEndInput(raw);
@@ -385,7 +433,21 @@ export default function HomePage() {
 
   /** Sportart wechseln – der Untergrund muss zur neuen Auswahl passen. */
   const changeSport = (sport: Sport) =>
-    setForm((prev) => ({ ...prev, sport, surface: surfaceForSport(sport, prev.surface) }));
+    setForm((prev) => ({
+      ...prev,
+      sport,
+      surface: surfaceForSport(sport, prev.surface),
+      watered: sportAllowsWatering(sport) ? prev.watered : false,
+    }));
+
+  const changeAge = (ageGroup: AgeBand) =>
+    setForm((prev) => ({
+      ...prev,
+      ageGroup,
+      performanceLevel: isPerformanceLocked(ageGroup)
+        ? "recreational"
+        : prev.performanceLevel,
+    }));
 
   /** Intensität wechseln – Standarddauer der neuen Stufe übernehmen. */
   const changeIntensity = (intensity: IntensityLevel) =>
@@ -580,10 +642,13 @@ export default function HomePage() {
       lng: form.lng!.toFixed(4),
       sport: form.sport,
       age: form.ageGroup,
+      level: isPerformanceLocked(form.ageGroup)
+        ? "recreational"
+        : form.performanceLevel,
       intensity: form.intensity,
       surface: form.surface,
       shadow: form.shadow,
-      watered: String(form.watered),
+      watered: String(sportAllowsWatering(form.sport) && form.watered),
       start: form.startTime,
       end: endStamp(form.startTime, form.endTime),
     });
@@ -779,7 +844,7 @@ export default function HomePage() {
           <SelectField
             id="sport"
             label="Sportart"
-            icon={<Trophy className="size-4" />}
+            icon={<Medal className="size-4" />}
             value={form.sport}
             options={SPORT_OPTIONS}
             onChange={changeSport}
@@ -788,16 +853,27 @@ export default function HomePage() {
             id="age"
             label="Altersklasse"
             icon={<Users className="size-4" />}
-            hint={ageGroupHint(form.sport)}
             value={form.ageGroup}
-            options={AGE_OPTIONS}
-            onChange={(v) => update("ageGroup", v)}
+            options={ageOptionsForSport(form.sport)}
+            onChange={changeAge}
+          />
+          <SelectField
+            id="level"
+            label="Leistungsstufe"
+            icon={<Award className="size-4" />}
+            value={
+              isPerformanceLocked(form.ageGroup)
+                ? "recreational"
+                : form.performanceLevel
+            }
+            options={PERFORMANCE_OPTIONS}
+            disabled={isPerformanceLocked(form.ageGroup)}
+            onChange={(v) => update("performanceLevel", v)}
           />
           <SelectField
             id="intensity"
             label="Intensität"
             icon={<Gauge className="size-4" />}
-            hint={intensityHint()}
             value={form.intensity}
             options={intensityOptionsForSport(form.sport)}
             onChange={changeIntensity}
@@ -809,52 +885,45 @@ export default function HomePage() {
       <Card className={submitAttempted && (!hasTime || Boolean(timeError)) ? "border-red-400 ring-1 ring-red-400" : ""}>
         <SectionTitle icon={<CalendarClock className="size-4" />} title="Zeitpunkt" />
 
-        <div className="mt-3 flex flex-col gap-3">
-          <div>
-            <label htmlFor="start" className="text-sm font-semibold text-slate-700">
-              Beginn von Training / Spiel
-            </label>
+        <div className="mt-3 flex flex-col gap-4">
+          <FormField id="date" label="Datum" icon={<Calendar className="size-4" />}>
             <input
+              id="date"
+              type="date"
+              value={startDatePart(form.startTime)}
+              min={hydrated ? minStartDate() : undefined}
+              max={hydrated ? maxStartDate() : undefined}
+              onChange={(e) => changeDate(e.target.value)}
+              className={CONTROL_CLASS}
+            />
+          </FormField>
+
+          <FormField id="start" label="Beginn" icon={<Clock className="size-4" />}>
+            <TimeSelect
               id="start"
-              type="datetime-local"
-              step={TIME_STEP_SECONDS}
-              value={form.startTime}
-              min={hydrated ? minStartTime() : undefined}
-              max={hydrated ? maxStartTime() : undefined}
-              onChange={(e) => changeStart(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-base outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+              value={startClockPart(form.startTime)}
+              options={CLOCK_OPTIONS}
+              onChange={changeStartClock}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="end" className="text-sm font-semibold text-slate-700">
-              Ende
-            </label>
-            <input
+          <FormField id="end" label="Ende" icon={<Clock className="size-4" />}>
+            <TimeSelect
               id="end"
-              type="time"
-              step={TIME_STEP_SECONDS}
               value={form.endTime}
-              onChange={(e) => changeEnd(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-base outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+              options={CLOCK_OPTIONS}
+              onChange={changeEnd}
             />
-          </div>
+          </FormField>
 
-          <div>
-            <label htmlFor="duration" className="text-sm font-semibold text-slate-700">
-              Dauer
-            </label>
-            <input
+          <FormField id="duration" label="Dauer" icon={<Timer className="size-4" />}>
+            <TimeSelect
               id="duration"
-              type="time"
-              step={TIME_STEP_SECONDS}
-              min="00:15"
-              max="06:00"
-              value={durationToInput(Math.max(0, duration))}
-              onChange={(e) => changeDuration(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-3 text-base outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+              value={durationToInput(Math.max(QUARTER_MIN, duration))}
+              options={DURATION_OPTIONS}
+              onChange={changeDuration}
             />
-          </div>
+          </FormField>
 
           {timeError ? (
             <p
@@ -1014,6 +1083,7 @@ export default function HomePage() {
             </div>
           ) : null}
 
+          {sportAllowsWatering(form.sport) ? (
           <label
             htmlFor="watered"
             className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3.5 transition has-checked:border-sky-400 has-checked:bg-sky-50 lg:col-span-2"
@@ -1035,6 +1105,7 @@ export default function HomePage() {
               </span>
             </span>
           </label>
+          ) : null}
         </div>
       </Card>
       </div>
@@ -1087,10 +1158,74 @@ function Card({
 
 function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
-    <h2 className="flex items-center gap-2 text-xs font-bold tracking-wider text-slate-500 uppercase">
+    <h2 className="flex h-5 items-center gap-2 text-xs font-bold tracking-wider text-slate-500 uppercase">
       <span className="text-orange-500">{icon}</span>
       {title}
     </h2>
+  );
+}
+
+const CONTROL_CLASS =
+  "box-border h-12 w-full rounded-lg border border-gray-200 bg-white px-3.5 text-base leading-none outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20";
+
+function FormField({
+  id,
+  label,
+  icon,
+  disabled = false,
+  children,
+}: {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={disabled ? "cursor-not-allowed opacity-50" : undefined}>
+      <label
+        htmlFor={id}
+        className="flex h-5 items-center gap-1.5 text-sm leading-none font-semibold text-slate-700"
+      >
+        <span className="text-slate-400">{icon}</span>
+        {label}
+      </label>
+      <div className="relative mt-1.5">{children}</div>
+    </div>
+  );
+}
+
+function TimeSelect({
+  id,
+  value,
+  options,
+  onChange,
+}: {
+  id: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  const choices = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${CONTROL_CLASS} appearance-none pr-10`}
+      >
+        {choices.map((time) => (
+          <option key={time} value={time}>
+            {time}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-slate-400"
+        aria-hidden
+      />
+    </>
   );
 }
 
@@ -1102,6 +1237,7 @@ function SelectField<T extends string>({
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   id: string;
   label: string;
@@ -1110,37 +1246,28 @@ function SelectField<T extends string>({
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
+  disabled?: boolean;
 }) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"
+    <FormField id={id} label={label} icon={icon} disabled={disabled}>
+      <select
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value as T)}
+        className={`${CONTROL_CLASS} appearance-none pr-10 disabled:cursor-not-allowed`}
       >
-        <span className="text-slate-400">{icon}</span>
-        {label}
-      </label>
-
-      <div className="relative mt-1.5">
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value as T)}
-          className="w-full appearance-none rounded-lg border border-gray-200 bg-white py-3 pr-10 pl-3.5 text-base outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
-        >
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-slate-400"
-          aria-hidden
-        />
-      </div>
-
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-slate-400"
+        aria-hidden
+      />
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
-    </div>
+    </FormField>
   );
 }

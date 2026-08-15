@@ -29,18 +29,21 @@ import {
   Trees,
 } from "lucide-react";
 import {
-  AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
   ageOffsetLabel,
+  ageOptionsForSport,
   eventTypeFromIntensity,
   intensityOffsetLabel,
   labelFor,
   parseAgeGroup,
   parseIntensity,
   parseOption,
+  parsePerformanceLevel,
+  PERFORMANCE_OPTIONS,
+  performanceOffsetLabel,
   SHADOW_OPTIONS,
   shortLabelFor,
   SPORT_OPTIONS,
@@ -53,7 +56,7 @@ import {
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
-import { WBGT_EXPLAINER } from "@/lib/legal";
+import { WBGT_CALCULATED_NOTE, WBGT_EXPLAINER } from "@/lib/legal";
 import { OsmMap } from "@/lib/OsmMap";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
 import { ThresholdsBox } from "@/lib/ThresholdsBox";
@@ -66,7 +69,9 @@ import {
   getSurfaceConfig,
   intensityHeadline,
   intensityThresholdOffset,
+  performanceThresholdOffset,
   showsSurfaceSourceInfo,
+  sportAllowsWatering,
   SPORTS,
   surfaceOffsetBreakdownValue,
   usesProfiThresholds,
@@ -82,8 +87,7 @@ import {
   findHourIndex,
   getAmpelThresholds,
   getForecastSummary,
-  DISPLAY_HOUR_FROM,
-  DISPLAY_HOUR_TO,
+  CONTEXT_HOURS,
   GLOBE_DELTA_MAX,
   GLOBE_SOLAR_COEF,
   localHourStamp,
@@ -101,8 +105,9 @@ import {
   WBGT_AIR_WEIGHT,
   WBGT_GLOBE_WEIGHT,
   WBGT_WET_BULB_WEIGHT,
-  type AgeGroup,
+  type AgeBand,
   type ColorCode,
+  type PerformanceLevel,
   type WBGTBreakdown,
   type Shadow,
   type Surface,
@@ -230,6 +235,10 @@ function RadarContent() {
 
   const sport = parseOption(searchParams.get("sport"), SPORT_OPTIONS, DEFAULT_SPORT);
   const ageGroup = parseAgeGroup(searchParams.get("age"));
+  const performanceLevel = parsePerformanceLevel(
+    searchParams.get("level"),
+    searchParams.get("age")
+  );
   const intensity = parseIntensity(
     searchParams.get("intensity"),
     searchParams.get("event")
@@ -240,7 +249,8 @@ function RadarContent() {
     parseOption(searchParams.get("surface"), ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
   );
   const shadow = parseOption(searchParams.get("shadow"), SHADOW_OPTIONS, DEFAULT_SHADOW);
-  const watered = searchParams.get("watered") === "true";
+  const watered =
+    sportAllowsWatering(sport) && searchParams.get("watered") === "true";
 
   // "2026-08-13T14:30" – fehlt oder unbrauchbar: aktuelle Stunde
   const startRaw = searchParams.get("start");
@@ -275,6 +285,7 @@ function RadarContent() {
           shadow,
           watered,
           ageGroup,
+          performanceLevel,
           sport,
           eventType,
           intensity,
@@ -293,6 +304,7 @@ function RadarContent() {
             shadow,
             watered,
             ageGroup,
+            performanceLevel,
             sport,
             eventType,
             intensity,
@@ -378,6 +390,7 @@ function RadarContent() {
         <ThresholdsBox
           sport={sport}
           ageGroup={ageGroup}
+          performanceLevel={performanceLevel}
           intensity={intensity}
           colorCode={summary.colorCode}
           maxWbgt={summary.maxWbgt}
@@ -411,7 +424,12 @@ function RadarContent() {
             </p>
           )}
 
-          <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase">Verlauf</h2>
+          <div className="flex items-start justify-between gap-2">
+            <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+              Verlauf
+            </h2>
+            <VerlaufInfoTip sessionLabel={sessionLabel} />
+          </div>
           <div className="mt-2 h-48 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 22, right: 8, bottom: 4, left: 8 }}>
@@ -450,11 +468,6 @@ function RadarContent() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          <p className="pt-1 text-[11px] text-slate-400">
-            Der Rahmen markiert den Zeitraum der Einheit ({sessionLabel} Uhr). Blasse Balken =
-            fünf Stunden davor und danach. Angezeigt werden nur Zeiten zwischen{" "}
-            {DISPLAY_HOUR_FROM}:00 und {DISPLAY_HOUR_TO}:00 Uhr.
-          </p>
         </Panel>
 
         {hasDayCompare && (
@@ -470,6 +483,7 @@ function RadarContent() {
             surface={surface}
             shadow={shadow}
             ageGroup={ageGroup}
+            performanceLevel={performanceLevel}
             intensity={intensity}
             startLabel={peakHour.timestamp.slice(11, 16)}
           />
@@ -484,6 +498,10 @@ function RadarContent() {
           />
         </div>
 
+        <div className="md:col-span-2 lg:col-span-3">
+          <DisclaimerBox />
+        </div>
+
         <Panel className="md:col-span-2 lg:col-span-3">
           <Actions />
           <p className="pt-3 text-center text-sm leading-relaxed text-gray-500">
@@ -491,8 +509,7 @@ function RadarContent() {
           </p>
         </Panel>
       </div>
-      <div className="mt-4 flex flex-col gap-4">
-        <DisclaimerBox />
+      <div className="mt-4">
         <FeedbackSupport />
       </div>
     </PageShell>
@@ -603,6 +620,7 @@ function Breakdown({
   surface,
   shadow,
   ageGroup,
+  performanceLevel,
   intensity,
   startLabel,
 }: {
@@ -610,20 +628,33 @@ function Breakdown({
   sport: Sport;
   surface: Surface;
   shadow: Shadow;
-  ageGroup: AgeGroup;
+  ageGroup: AgeBand;
+  performanceLevel: PerformanceLevel;
   intensity: IntensityLevel;
   startLabel: string;
 }) {
   const b = hour.breakdown;
-  const thresholds = getAmpelThresholds(sport, ageGroup, intensity);
+  const thresholds = getAmpelThresholds(
+    sport,
+    ageGroup,
+    intensity,
+    performanceLevel
+  );
   const shadeLabel = shortLabelFor(SHADOW_OPTIONS, shadow);
   const surfaceCfg = getSurfaceConfig(sport, surface);
   const surfaceLabel = surfaceCfg.name;
-  const ageLabel = labelFor(AGE_OPTIONS, ageGroup);
+  const ageLabel = labelFor(ageOptionsForSport(sport), ageGroup);
+  const performanceLabel = labelFor(PERFORMANCE_OPTIONS, performanceLevel);
   const intensityName = intensityHeadline(intensity, sport);
   const ageOff = ageThresholdOffset(sport, ageGroup);
+  const performanceOff = performanceThresholdOffset(
+    sport,
+    ageGroup,
+    performanceLevel
+  );
   const intensityOff = intensityThresholdOffset(intensity);
-  const offsetSum = ageOff + intensityOff;
+  const offsetSum = ageOff + performanceOff + intensityOff;
+  const ageSourceId = ageGroup === "senior" ? "aging_heat" : "acsm_general";
   const base = baseBoundsForSport(sport);
   const sportSource = sourcesRegistry[SPORTS[sport].thresholds.sourceId];
   const sportOrg = sportSource.organisation ?? sportSource.name;
@@ -772,7 +803,7 @@ function Breakdown({
 
         <BreakdownSection
           title="5. Intensität & Dauer"
-          hint="ACGIH-Analogie auf die Ampel-Schwellen, nicht auf den WBGT-Wert. Alters- und Intensitäts-Offset sind beide Näherungen – zusammen nicht sicherer."
+          hint="ACGIH-Analogie auf die Ampel-Schwellen, nicht auf den WBGT-Wert. Alters-, Leistungs- und Intensitäts-Offset sind Näherungen – zusammen nicht sicherer."
         >
           <BreakdownRow
             label={`Intensitäts-Offset (${intensityName})`}
@@ -780,8 +811,17 @@ function Breakdown({
             info={<SourceInfoButton sourceId="acgih_tlv" variant="anchor" />}
           />
           <BreakdownRow
-            label={`Alters-/Akklimatisierungs-Offset (${ageLabel})`}
+            label={`Alters-Offset (${ageLabel})`}
             value={ageOffsetLabel(sport, ageGroup)}
+            info={
+              usesProfiThresholds(sport) ? (
+                <SourceInfoButton sourceId={ageSourceId} variant="anchor" />
+              ) : undefined
+            }
+          />
+          <BreakdownRow
+            label={`Leistungs-Offset (${performanceLabel})`}
+            value={performanceOffsetLabel(sport, ageGroup, performanceLevel)}
             info={
               usesProfiThresholds(sport) ? (
                 <SourceInfoButton sourceId="acsm_general" variant="anchor" />
@@ -796,7 +836,7 @@ function Breakdown({
 
         <BreakdownSection
           title="6. Ampel"
-          hint="finale Schwelle = Verbands- bzw. Fallback-Schwelle + Alters-Offset + Intensitäts-Offset. Beide Offsets sind Sicherheits-Näherungen."
+          hint="finale Schwelle = Verbands- bzw. Fallback-Schwelle + Alters-Offset + Leistungs-Offset + Intensitäts-Offset. Die Offsets sind Sicherheits-Näherungen."
         >
           {usesProfiThresholds(sport) ? (
             <BreakdownRow
@@ -812,8 +852,12 @@ function Breakdown({
             />
           )}
           <BreakdownRow
-            label={`Alters-/Akklimatisierungs-Offset (${ageLabel})`}
+            label={`Alters-Offset (${ageLabel})`}
             value={ageOffsetLabel(sport, ageGroup)}
+          />
+          <BreakdownRow
+            label={`Leistungs-Offset (${performanceLabel})`}
+            value={performanceOffsetLabel(sport, ageGroup, performanceLevel)}
           />
           <BreakdownRow
             label={`Intensitäts-Offset (${intensityName})`}
@@ -1048,6 +1092,39 @@ function AmpelBox({
   );
 }
 
+function VerlaufInfoTip({ sessionLabel }: { sessionLabel: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex size-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+      >
+        <Info className="size-3.5" aria-hidden />
+        <span className="sr-only">Hinweis zum Verlauf</span>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute top-full right-0 z-30 mt-1 w-64 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
+        >
+          Der Rahmen markiert den Zeitraum der Einheit ({sessionLabel} Uhr). Blasse
+          Balken = {CONTEXT_HOURS} Stunden davor und danach.
+        </span>
+      )}
+    </span>
+  );
+}
+
 function WbgtInfoTip() {
   const [open, setOpen] = useState(false);
 
@@ -1068,9 +1145,10 @@ function WbgtInfoTip() {
         <span
           id="wbgt-tip"
           role="tooltip"
-          className="absolute top-full left-0 z-30 mt-2 w-64 rounded-lg bg-slate-900 p-3 text-left text-xs leading-relaxed font-medium text-white shadow-lg"
+          className="absolute top-full left-0 z-30 mt-2 w-72 rounded-lg bg-slate-900 p-3 text-left text-xs leading-relaxed font-medium text-white shadow-lg"
         >
-          {WBGT_EXPLAINER}
+          <span className="block">{WBGT_EXPLAINER}</span>
+          <span className="mt-2 block">{WBGT_CALCULATED_NOTE}</span>
         </span>
       )}
     </span>

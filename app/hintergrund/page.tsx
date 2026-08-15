@@ -175,6 +175,15 @@ export default function HintergrundPage() {
             20&nbsp;%. Deshalb läuft Schatten über das Beschattungsfeld und nicht als
             Untergrundbonus.
           </li>
+          <li>
+            <strong>65 Jahre und älter (extra −1&nbsp;°C):</strong> die Richtung ist
+            besser belegt als bei Kindern. Ab etwa 60 Jahren sinken Schweißrate und
+            Hautdurchblutung, die Kerntemperatur steigt schneller (Kenney; Meade et
+            al. 2023). CDC stuft Menschen ab 65 Jahren als Risikogruppe ein.
+            Fitnesstragende, akklimatisierte Masters-Athleten können trotzdem ähnlich
+            gut regulieren – das Alter allein erklärt nicht alles. Kein Verband nennt
+            einen °C-Abzug; der Betrag ist gesetzt, nicht abgeleitet.
+          </li>
         </ul>
 
         <h3 className="mt-1 text-sm font-bold text-slate-800">
@@ -188,19 +197,23 @@ export default function HintergrundPage() {
             validiert – eine Analogie, keine Übernahme.
           </li>
           <li>
-            <strong>Altersklassen (−3&nbsp;°C Breitensport, −4&nbsp;°C U15):</strong>
+            <strong>Leistungsstufe (−2&nbsp;°C Breitensport, 0&nbsp;°C Professionell / Akklimatisiert):</strong>
             {" "}
-            eine Vorsichtsentscheidung, keine physiologische Aussage – und hier korrigiert
-            die App eine verbreitete Annahme. Die These, Kinder seien grundsätzlich
-            hitzeempfindlicher, gilt in der Sportmedizin als überholt; bei
-            ausreichender Flüssigkeitszufuhr regulieren sie ihre Temperatur ähnlich gut.
-            Der ACSM formuliert es selbst so, dass die Datenlage diesen Glauben nicht
-            stützt, es aber vernünftig sei, Kinder als Risikogruppe zu behandeln. Genau
-            dieser Linie folgen wir. Der tatsächlich belegte Unterschied ist
-            Akklimatisierung: Profis im Turnierbetrieb sind hitzeangepasst, ein
-            Kreisliga-Kader im ersten warmen Mai-Training nicht. Kein Verband beziffert
-            einen Alters-Offset – die Werte sind gesetzt, nicht abgeleitet. Zwei solche
-            Offsets addiert ergeben keine doppelte Sicherheit.
+            der tatsächlich belegte Unterschied ist Akklimatisierung. Profis im
+            Turnierbetrieb sind hitzeangepasst, ein Kreisliga-Kader im ersten warmen
+            Mai-Training nicht. Der Abstand ist eine grobe Analogie, kein Verbandswert.
+            Nur bei 16–64 Jahren wählbar; unter 16 und 65+ bleibt das Feld auf
+            Breitensport.
+          </li>
+          <li>
+            <strong>Unter 16 Jahren (extra −1&nbsp;°C):</strong> Vorsicht trotz
+            schwacher Physiologie-Lage. Die These, Kinder seien grundsätzlich
+            hitzeempfindlicher, gilt in der Sportmedizin als überholt (Rowland 2008,
+            Falk &amp; Dotan 2008); bei ausreichender Flüssigkeitszufuhr regulieren sie
+            ihre Temperatur ähnlich gut. Der ACSM Position Stand 2007 sagt selbst, die
+            Datenlage stütze das nicht, es sei aber vernünftig, Kinder als Risikogruppe
+            zu behandeln. Genau dieser Linie folgen wir – der Abzug bleibt klein.
+            Zwei solche Offsets addiert ergeben keine doppelte Sicherheit.
           </li>
           <li>
             <strong>Bewässerung (−0,5&nbsp;°C):</strong> der schwächste Wert im ganzen

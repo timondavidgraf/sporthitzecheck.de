@@ -9,6 +9,7 @@
 
 import {
   DEFAULT_INTENSITY,
+  DEFAULT_PERFORMANCE,
   INTENSITY_LEVELS,
   SPORT_ORDER,
   SPORTS,
@@ -19,8 +20,10 @@ import {
   formatOffset,
   formatSignedOffset,
   getSurfaceConfig,
+  intensityFamily,
   intensityModifier,
   intensityThresholdOffset,
+  performanceThresholdOffset,
   surfaceOffsetDisplay,
   usesProfiThresholds,
   type IntensityLevel,
@@ -28,12 +31,13 @@ import {
 } from "./sportsConfig";
 import {
   SHADOW_FACTORS,
-  type AgeGroup,
+  type AgeBand,
+  type PerformanceLevel,
   type Shadow,
   type Surface,
 } from "./wbgtCalculator";
 
-export type { IntensityLevel, Sport };
+export type { AgeBand, IntensityLevel, PerformanceLevel, Sport };
 
 export interface Option<T extends string> {
   value: T;
@@ -52,25 +56,50 @@ export const SPORT_OPTIONS: readonly Option<Sport>[] = SPORT_ORDER.map((id) => (
   short: SPORTS[id].short,
 }));
 
-export const AGE_OPTIONS: readonly Option<AgeGroup>[] = [
-  {
-    value: "recreational",
-    label: "Erwachsene (Breitensport)",
-    short: "Breitensport",
+const AGE_LABELS: Record<
+  ReturnType<typeof intensityFamily>,
+  Record<AgeBand, { label: string; short: string }>
+> = {
+  match: {
+    youth: { label: "Unter 16 Jahre", short: "U16" },
+    adult: { label: "16–64 Jahre", short: "16–64" },
+    senior: { label: "65 Jahre und älter", short: "65+" },
   },
-  {
-    value: "youth",
-    label: "Kinder/Jugend (U15)",
-    short: "U15",
+  endurance: {
+    youth: { label: "Unter 16 Jahre", short: "Jugend" },
+    adult: { label: "16–64 Jahre", short: "16–64" },
+    senior: { label: "65 Jahre und älter", short: "65+" },
   },
+};
+
+export const AGE_OPTIONS: readonly Option<AgeBand>[] = [
+  { value: "youth", ...AGE_LABELS.match.youth },
+  { value: "adult", ...AGE_LABELS.match.adult },
+  { value: "senior", ...AGE_LABELS.match.senior },
+];
+
+export function ageOptionsForSport(sport: Sport): readonly Option<AgeBand>[] {
+  const family = intensityFamily(sport);
+  return (["youth", "adult", "senior"] as const).map((id) => ({
+    value: id,
+    ...AGE_LABELS[family][id],
+  }));
+}
+
+export const PERFORMANCE_OPTIONS: readonly Option<PerformanceLevel>[] = [
+  { value: "recreational", label: "Breitensport", short: "Breitensport" },
   {
     value: "elite",
-    label: "Profis/Akklimatisiert",
-    short: "Profi",
+    label: "Professionell / Akklimatisiert",
+    short: "Professionell",
   },
 ];
 
-export { DEFAULT_INTENSITY, durationForIntensity, eventTypeFromIntensity };
+export function isPerformanceLocked(ageGroup: AgeBand): boolean {
+  return ageGroup !== "adult";
+}
+
+export { DEFAULT_INTENSITY, DEFAULT_PERFORMANCE, durationForIntensity, eventTypeFromIntensity };
 
 export function intensityOptionsForSport(
   sport: Sport
@@ -154,7 +183,7 @@ export const SHADOW_OPTIONS: readonly Option<Shadow>[] = [
 ];
 
 export const DEFAULT_SPORT: Sport = "football";
-export const DEFAULT_AGE: AgeGroup = "recreational";
+export const DEFAULT_AGE: AgeBand = "adult";
 export const DEFAULT_SHADOW: Shadow = "none";
 export const DEFAULT_SURFACE: Surface = "grass";
 
@@ -177,20 +206,47 @@ export function surfaceOffsetLabel(sport: Sport, surface: Surface): string | nul
   return surfaceOffsetDisplay(getSurfaceConfig(sport, surface));
 }
 
-/** Offset der Altersklasse gegenüber der Verbandsschwelle ("−3,0 °C"). */
-export function ageOffsetLabel(sport: Sport, ageGroup: AgeGroup): string {
+/** Offset der Altersklasse gegenüber der Verbandsschwelle. */
+export function ageOffsetLabel(sport: Sport, ageGroup: AgeBand): string {
   return formatOffset(ageThresholdOffset(sport, ageGroup));
+}
+
+export function performanceOffsetLabel(
+  sport: Sport,
+  ageGroup: AgeBand,
+  performanceLevel: PerformanceLevel
+): string {
+  return formatOffset(performanceThresholdOffset(sport, ageGroup, performanceLevel));
 }
 
 export function intensityOffsetLabel(intensity: IntensityLevel): string {
   return formatSignedOffset(intensityThresholdOffset(intensity));
 }
 
-export function ageGroupHint(sport: Sport): string {
+export function ageGroupHint(sport: Sport, ageGroup: AgeBand): string {
   if (!usesProfiThresholds(sport)) {
     return "Fallback-Wert gilt bereits konservativ für alle Altersgruppen.";
   }
-  return "Verbandsschwelle −3,0 °C (Breitensport) bzw. −4,0 °C (U15). Profis unverändert. Näherung, nicht altersgruppen-validiert.";
+  if (ageGroup === "youth") {
+    return "Vorsicht trotz schwacher Physiologie-Lage. Kinder sind nicht grundsätzlich hitzeempfindlicher; der ACSM hält die Behandlung als Risikogruppe trotzdem für vernünftig.";
+  }
+  if (ageGroup === "senior") {
+    return "Richtung belegt (Schweißrate, Hautdurchblutung, CDC-Risikogruppe), Betrag gesetzt – kein Verband nennt einen °C-Abzug.";
+  }
+  return "Unter 16 und 65+: jeweils −1,0 °C gegenüber der Verbandsschwelle.";
+}
+
+export function performanceHint(
+  sport: Sport,
+  performanceLevel: PerformanceLevel
+): string {
+  if (!usesProfiThresholds(sport)) {
+    return "Fallback-Wert gilt bereits konservativ für alle Leistungsstufen.";
+  }
+  if (performanceLevel === "elite") {
+    return "Breitensport: −2,0 °C. Nur bei 16–64 Jahren wählbar.";
+  }
+  return "Professionell / Akklimatisiert bleibt bei der Verbandsschwelle. Nur bei 16–64 Jahren wählbar.";
 }
 
 export function intensityHint(): string {
@@ -198,13 +254,29 @@ export function intensityHint(): string {
 }
 
 /**
- * Alte localStorage-/URL-Werte (child, adult, senior) auf die neue
- * Dreier-Systematik legen.
+ * URL/localStorage: youth/adult/senior, plus alte Mischwerte.
+ * `elite` und `recreational` waren Alter+Leistung in einem Feld.
  */
-export function parseAgeGroup(value: unknown): AgeGroup {
+export function parseAgeGroup(value: unknown): AgeBand {
   if (value === "child" || value === "youth") return "youth";
-  if (value === "elite") return "elite";
+  if (value === "senior") return "senior";
+  if (value === "elite" || value === "recreational" || value === "adult") return "adult";
   return DEFAULT_AGE;
+}
+
+/**
+ * `level=` hat Vorrang. Altes `age=elite` wird zu Professionell.
+ * Jugend und 65+ sind immer Breitensport.
+ */
+export function parsePerformanceLevel(
+  levelParam: unknown,
+  ageParam?: unknown
+): PerformanceLevel {
+  const age = parseAgeGroup(ageParam);
+  if (isPerformanceLocked(age)) return "recreational";
+  if (levelParam === "elite" || ageParam === "elite") return "elite";
+  if (levelParam === "recreational") return "recreational";
+  return DEFAULT_PERFORMANCE;
 }
 
 /** Anteil der Direktstrahlung bzw. des Untergrund-Zuschlags ("50 %"). */

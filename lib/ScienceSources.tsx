@@ -45,7 +45,10 @@ export function thresholdSourceIds(sport: Sport): SourceId[] {
   const ids: SourceId[] = [t.sourceId];
   if (t.alternative) ids.push(t.alternative.sourceId);
   if (sport === "beachvolleyball") ids.push("fivb_studie_2012");
-  if (usesProfiThresholds(sport)) ids.push("acsm_general");
+  if (usesProfiThresholds(sport)) {
+    ids.push("acsm_general");
+    ids.push("aging_heat");
+  }
   ids.push("acgih_tlv");
   return uniqueIds(ids);
 }

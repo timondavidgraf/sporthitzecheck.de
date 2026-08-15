@@ -3,6 +3,7 @@ import {
   DEFAULT_INTENSITY,
   hasNumericSurfaceOffset,
   numericSurfaceOffset,
+  sportAllowsWatering,
   type IntensityLevel,
   type Sport,
 } from './sportsConfig';
@@ -32,7 +33,10 @@ export type Surface =
   | 'turf_epdm'
   | 'clay_red_dry';
 export type Shadow = 'none' | 'partial' | 'full';
-export type AgeGroup = 'recreational' | 'youth' | 'elite';
+export type AgeBand = "youth" | "adult" | "senior";
+export type PerformanceLevel = "recreational" | "elite";
+/** @deprecated Nutze AgeBand; bleibt als Alias für alte Imports. */
+export type AgeGroup = AgeBand;
 export type EventType = 'training' | 'match' | 'tournament' | 'other';
 export type ColorCode = 'green' | 'yellow' | 'orange' | 'red';
 
@@ -240,13 +244,6 @@ export const GLOBE_DELTA_MAX = 20;
 export const CONTEXT_HOURS = 5;
 
 /**
- * Nur realistische Trainingszeiten darstellen – nachts um 3 Uhr trainiert
- * niemand, und leere Balken würden das Diagramm nur stauchen.
- */
-export const DISPLAY_HOUR_FROM = 6;
-export const DISPLAY_HOUR_TO = 23;
-
-/**
  * Obergrenze fuer die Balkenzahl: 5 Kontextstunden je Seite plus die
  * maximale Einheitsdauer von 6 Stunden.
  */
@@ -292,11 +289,6 @@ export function shiftStampByDays(stamp: string, days: number): string {
   return `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}-${pad(
     shifted.getDate()
   )}T${timePart.slice(0, 5)}`;
-}
-
-/** Stunde des Tages aus einem lokalen Zeitstempel ("2026-08-13T14:00" -> 14). */
-export function hourOfStamp(stamp: string): number {
-  return Number(stamp.slice(11, 13));
 }
 
 /**
@@ -567,10 +559,11 @@ export function approximateWBGT(
 
 export function getAmpelThresholds(
   sport: Sport,
-  ageGroup: AgeGroup,
-  intensity: IntensityLevel = DEFAULT_INTENSITY
+  ageGroup: AgeBand,
+  intensity: IntensityLevel = DEFAULT_INTENSITY,
+  performanceLevel: PerformanceLevel = "recreational"
 ) {
-  return appliedBounds(sport, ageGroup, intensity);
+  return appliedBounds(sport, ageGroup, intensity, performanceLevel);
 }
 
 /**
@@ -580,13 +573,15 @@ export function getAmpelThresholds(
 export function getColorCode(
   wbgtValue: number,
   sport: Sport,
-  ageGroup: AgeGroup,
-  intensity: IntensityLevel = DEFAULT_INTENSITY
+  ageGroup: AgeBand,
+  intensity: IntensityLevel = DEFAULT_INTENSITY,
+  performanceLevel: PerformanceLevel = "recreational"
 ): ColorCode {
   const { gruen_max, gelb_max, orange_max } = getAmpelThresholds(
     sport,
     ageGroup,
-    intensity
+    intensity,
+    performanceLevel
   );
 
   if (wbgtValue > orange_max) return 'red';
@@ -621,7 +616,9 @@ export interface ForecastRequest {
   surface: Surface;
   shadow: Shadow;
   watered: boolean;
-  ageGroup: AgeGroup;
+  ageGroup: AgeBand;
+  /** Nur bei Erwachsenen wirksam; Jugend und 65+ gelten als Breitensport. */
+  performanceLevel?: PerformanceLevel;
   sport: Sport;
   /** Art der Belastung – steuert die Handlungsempfehlung, nicht den WBGT-Wert */
   eventType?: EventType;
@@ -633,13 +630,6 @@ export interface ForecastRequest {
   sessionToIndex: number;
   /** Kontextstunden vor/nach der Einheit; Standard {@link CONTEXT_HOURS} */
   contextHours?: number;
-  /**
-   * Stunden ausserhalb dieses Fensters werden nicht dargestellt. Standard ist
-   * {@link DISPLAY_HOUR_FROM} bis {@link DISPLAY_HOUR_TO}; die Stunden der
-   * Einheit selbst bleiben immer erhalten, auch wenn sie ausserhalb liegen.
-   */
-  displayHourFrom?: number;
-  displayHourTo?: number;
 }
 
 /**
@@ -667,9 +657,8 @@ export function calculateWBGTForecast(
     sport,
     eventType = 'training',
     intensity = DEFAULT_INTENSITY,
+    performanceLevel = 'recreational',
     contextHours = CONTEXT_HOURS,
-    displayHourFrom = DISPLAY_HOUR_FROM,
-    displayHourTo = DISPLAY_HOUR_TO,
   } = request;
 
   const lastIndex = hourly.time.length - 1;
@@ -695,14 +684,6 @@ export function calculateWBGTForecast(
   for (let i = clamp(sessionFrom - contextHours); i <= clamp(sessionTo + contextHours); i++) {
     const timestamp = hourly.time[i];
     const inSession = i >= sessionFrom && i <= sessionTo;
-
-    // Kontextstunden ausserhalb der Trainingszeiten weglassen – die Einheit
-    // selbst wird nie unterdrueckt, sonst stuende vor Ort ein leeres
-    // Diagramm, nur weil die Einheit frueh morgens liegt.
-    if (!inSession) {
-      const hour = hourOfStamp(timestamp);
-      if (hour < displayHourFrom || hour > displayHourTo) continue;
-    }
 
     const temp = hourly.temperature_2m[i];
     const humidity = hourly.relative_humidity_2m[i];
@@ -740,6 +721,7 @@ export function calculateWBGTForecast(
     // Bewaesserung kuehlt ausschliesslich die erste Stunde der Einheit – und nur,
     // solange Sonne da ist und die Luft die Verdunstung noch aufnehmen kann.
     const wateringEffective =
+      sportAllowsWatering(sport) &&
       watered &&
       i === sessionFrom &&
       globalUnshaded > 0 &&
@@ -754,7 +736,7 @@ export function calculateWBGTForecast(
     const wbgtValue = round1(
       baseWbgt + shadeRadiationAdjustment + effectiveSurfaceOffset + wateringOffset
     );
-    const colorCode = getColorCode(wbgtValue, sport, ageGroup, intensity);
+    const colorCode = getColorCode(wbgtValue, sport, ageGroup, intensity, performanceLevel);
     const recommendation = getRecommendation(sport, colorCode, eventType, wbgtValue);
 
     forecast.push({
@@ -881,7 +863,8 @@ export interface SessionParams {
   surface: Surface;
   shadow: Shadow;
   watered: boolean;
-  ageGroup: AgeGroup;
+  ageGroup: AgeBand;
+  performanceLevel?: PerformanceLevel;
   sport: Sport;
   eventType?: EventType;
   intensity?: IntensityLevel;
@@ -912,6 +895,7 @@ export function summarizeSession(
     shadow: params.shadow,
     watered: params.watered,
     ageGroup: params.ageGroup,
+    performanceLevel: params.performanceLevel,
     sport: params.sport,
     eventType: params.eventType,
     intensity: params.intensity,

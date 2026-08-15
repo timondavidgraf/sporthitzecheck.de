@@ -3,10 +3,15 @@
 import { useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import {
-  AGE_OPTIONS,
+  ageGroupHint,
+  ageOptionsForSport,
+  intensityHint,
   intensityOffsetLabel,
   intensityOptionsForSport,
   labelFor,
+  PERFORMANCE_OPTIONS,
+  performanceHint,
+  performanceOffsetLabel,
   shortLabelFor,
   SPORT_OPTIONS,
 } from "@/lib/formOptions";
@@ -14,6 +19,7 @@ import {
   SPORTS,
   ageThresholdOffset,
   appliedBounds,
+  baseBoundsForSport,
   formatOffset,
   sportConfidence,
   usesProfiThresholds,
@@ -22,15 +28,16 @@ import {
   type Sport,
 } from "@/lib/sportsConfig";
 import {
-  FALLBACK_AGE_HINT,
   LOW_CONFIDENCE_BADGE,
   SOURCES_BLOCK_THRESHOLDS,
   WHY_THESE_VALUES_LABEL,
   sourceHref,
   sourcesBlockHref,
   sourcesRegistry,
+  type SourceConfidence,
+  type SourceId,
 } from "@/lib/sourcesRegistry";
-import type { AgeGroup, ColorCode } from "@/lib/wbgtCalculator";
+import type { AgeBand, ColorCode, PerformanceLevel } from "@/lib/wbgtCalculator";
 
 const AMPEL_BG: Record<ColorCode, string> = {
   green: "bg-green-500",
@@ -45,6 +52,14 @@ const THRESHOLD_STEPS: { code: ColorCode; label: string }[] = [
   { code: "orange", label: "Orange" },
   { code: "red", label: "Rot" },
 ];
+
+function thresholdSourceShort(sport: Sport): string {
+  if (!usesProfiThresholds(sport)) return "ACSM";
+  const organisation = sourcesRegistry[SPORTS[sport].thresholds.sourceId].organisation;
+  if (organisation === "International Tennis Federation") return "ITF";
+  if (organisation === "Union Cycliste Internationale") return "UCI";
+  return organisation ?? "Verband";
+}
 
 function rangeLabel(
   code: ColorCode,
@@ -62,30 +77,35 @@ function rangeLabel(
 export function ThresholdsBox({
   sport,
   ageGroup,
+  performanceLevel,
   intensity,
   colorCode,
   maxWbgt,
 }: {
   sport: Sport;
-  ageGroup: AgeGroup;
+  ageGroup: AgeBand;
+  performanceLevel: PerformanceLevel;
   intensity: IntensityLevel;
   colorCode: ColorCode;
   maxWbgt: number;
 }) {
   const config = SPORTS[sport];
   const confidence = sportConfidence(sport);
-  const bounds = appliedBounds(sport, ageGroup, intensity);
-  const offset = ageThresholdOffset(sport, ageGroup);
+  const bounds = appliedBounds(sport, ageGroup, intensity, performanceLevel);
+  const ageOffset = ageThresholdOffset(sport, ageGroup);
   const interpolation = config.thresholds.interpolationNote;
   const showWhyLink = confidence === "niedrig" || confidence === "mittel";
   const fifpro = config.thresholds.alternative;
   const extraPauseAt = config.thresholds.extraPauseAt;
   const suspensionAt = config.thresholds.suspensionAt;
   const intensityOptions = intensityOptionsForSport(sport);
+  const ageOptions = ageOptionsForSport(sport);
+  const ageSourceId = ageGroup === "senior" ? "aging_heat" : "acsm_general";
 
   const contextTags = [
     shortLabelFor(SPORT_OPTIONS, sport),
-    shortLabelFor(AGE_OPTIONS, ageGroup),
+    shortLabelFor(ageOptions, ageGroup),
+    shortLabelFor(PERFORMANCE_OPTIONS, performanceLevel),
     shortLabelFor(intensityOptions, intensity),
   ];
 
@@ -113,41 +133,48 @@ export function ThresholdsBox({
         ))}
       </div>
 
-      {usesProfiThresholds(sport) ? (
-        <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-500">
-          <span>
-            Altersgruppe: {labelFor(AGE_OPTIONS, ageGroup)} →{" "}
-            {formatOffset(offset)} (Näherung)
-          </span>
-          <a
-            href={sourceHref("acsm_general")}
-            className="inline-flex text-slate-400 underline decoration-slate-300 underline-offset-2 hover:text-orange-600"
-            title={sourcesRegistry.acsm_general.kernaussage}
-          >
-            <Info className="size-3.5" aria-hidden />
-            <span className="sr-only">Zur Quellen-Sektion</span>
-          </a>
-        </p>
-      ) : (
-        <p className="mt-2 text-xs text-slate-500">{FALLBACK_AGE_HINT}</p>
-      )}
-      <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+      <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+        <span>
+          {usesProfiThresholds(sport) ? "Verbandsschwelle" : "Studienschwellen"}:{" "}
+          {thresholdSourceShort(sport)}
+        </span>
+        <OfficialThresholdsTip sport={sport} />
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+        <span>
+          Altersklasse: {labelFor(ageOptions, ageGroup)} → {formatOffset(ageOffset)}
+        </span>
+        <OffsetHintTip
+          hint={ageGroupHint(sport, ageGroup)}
+          sourceId={usesProfiThresholds(sport) ? ageSourceId : config.thresholds.sourceId}
+          label="Hinweis zur Altersklasse"
+        />
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-500">
+        <span>
+          Leistungsstufe: {labelFor(PERFORMANCE_OPTIONS, performanceLevel)} →{" "}
+          {performanceOffsetLabel(sport, ageGroup, performanceLevel)}
+        </span>
+        <OffsetHintTip
+          hint={performanceHint(sport, performanceLevel)}
+          sourceId={
+            usesProfiThresholds(sport)
+              ? "acsm_general"
+              : config.thresholds.sourceId
+          }
+          label="Hinweis zur Leistungsstufe"
+        />
+      </p>
+      <p className="mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-500">
         <span>
           Intensität: {shortLabelFor(intensityOptions, intensity)} →{" "}
-          {intensityOffsetLabel(intensity)} (Näherung)
+          {intensityOffsetLabel(intensity)}
         </span>
-        <a
-          href={sourceHref("acgih_tlv")}
-          className="inline-flex text-slate-400 underline decoration-slate-300 underline-offset-2 hover:text-orange-600"
-          title={sourcesRegistry.acgih_tlv.kernaussage}
-        >
-          <Info className="size-3.5" aria-hidden />
-          <span className="sr-only">Zur ACGIH-Quelle</span>
-        </a>
-      </p>
-      <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
-        Alters- und Intensitäts-Offset sind beide Sicherheits-Näherungen, nicht direkt
-        validiert. Zusammen erzeugen sie keine höhere Sicherheit.
+        <OffsetHintTip
+          hint={intensityHint()}
+          sourceId="acgih_tlv"
+          label="Hinweis zur Intensität"
+        />
       </p>
 
       <ul className="mt-3 flex flex-col gap-1.5">
@@ -211,6 +238,112 @@ export function ThresholdsBox({
         </a>
       )}
     </section>
+  );
+}
+
+function OfficialThresholdsTip({ sport }: { sport: Sport }) {
+  const [open, setOpen] = useState(false);
+  const base = baseBoundsForSport(sport);
+  const sourceId = SPORTS[sport].thresholds.sourceId;
+  const source = sourcesRegistry[sourceId];
+  const short = thresholdSourceShort(sport);
+  const intro = usesProfiThresholds(sport)
+    ? `Unveränderte ${short}-Schwellen:`
+    : "ACSM-Schwellen, kein Verbandswert:";
+
+  return (
+    <span
+      className="relative inline-flex"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+      >
+        <Info className="size-3.5" aria-hidden />
+        <span className="sr-only">Verbands- bzw. Studiengrenzwerte</span>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute top-full left-0 z-30 mt-1 w-56 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
+        >
+          <span className="block">{intro}</span>
+          {THRESHOLD_STEPS.map((step) => (
+            <span key={step.code} className="mt-0.5 block tabular-nums">
+              {step.label}: {rangeLabel(step.code, base)}
+            </span>
+          ))}
+          <TooltipConfidence level={source.konfidenz} />
+          <a
+            href={sourceHref(sourceId)}
+            className="mt-1.5 block font-semibold text-orange-300 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-200"
+          >
+            Quellen
+          </a>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function OffsetHintTip({
+  hint,
+  sourceId,
+  label,
+}: {
+  hint: string;
+  sourceId: SourceId;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const source = sourcesRegistry[sourceId];
+  return (
+    <span
+      className="relative inline-flex"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
+      >
+        <Info className="size-3.5" aria-hidden />
+        <span className="sr-only">{label}</span>
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="absolute top-full left-0 z-30 mt-1 w-64 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
+        >
+          {hint}
+          <TooltipConfidence level={source.konfidenz} />
+          <a
+            href={sourceHref(sourceId)}
+            className="mt-1.5 block font-semibold text-orange-300 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-200"
+          >
+            Quellen
+          </a>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function TooltipConfidence({ level }: { level: SourceConfidence }) {
+  return (
+    <span className="mt-1.5 block text-white/75">Konfidenz: {level}</span>
   );
 }
 

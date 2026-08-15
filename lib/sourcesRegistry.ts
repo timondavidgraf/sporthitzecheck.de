@@ -16,6 +16,7 @@ export type SourceId =
   | "uci_2023"
   | "world_athletics"
   | "acsm_general"
+  | "aging_heat"
   | "acsm_fallback_beachvolleyball"
   | "fivb_studie_2012"
   | "fih_air_temp"
@@ -112,7 +113,20 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Achtstufige WBGT-Tabelle für gesunde Erwachsene. Ab 18,4 °C steigt das Risiko für Vorbelastete, ab 22,3 °C für alle, ab 25,7 °C deutlich für Unfitte und Nichtakklimatisierte; ab 27,9 °C empfiehlt der Standard, Ausdauerwettkämpfe abzusagen oder zu verlegen.",
     konfidenz: "hoch",
     einschraenkung:
-      "Der Standard betont selbst, dass lokales Klima und Akklimatisierungsgrad höhere Belastungen zulassen können. Für Kinder nennt er eine eigene Tabelle mit Abbruch über 29 °C – also praktisch dieselbe Größenordnung wie bei Erwachsenen und kein Belegwert für einen Alters-Offset.",
+      "Der Standard betont selbst, dass lokales Klima und Akklimatisierungsgrad höhere Belastungen zulassen können. Für Kinder nennt er eine eigene Tabelle mit Abbruch über 29 °C – praktisch dieselbe Größenordnung wie bei Erwachsenen und kein Beleg für einen großen Alters-Offset. Die App setzt deshalb nur −1 °C als Vorsicht trotz schwacher Physiologie-Lage. Ältere Erwachsene behandelt sie getrennt (Quelle zu Hitzestress im Alter).",
+  },
+  aging_heat: {
+    id: "aging_heat",
+    typ: "wissenschaftliche_studie",
+    name: "Heat stress vulnerability and critical environmental limits for older adults",
+    organisation: "Meade et al., Commun Earth Environ 4:486; CDC Heat Health; Kenney",
+    jahr: 2023,
+    url: "https://doi.org/10.1038/s43247-023-01159-9",
+    kernaussage:
+      "Ab etwa 60 Jahren sinken Schweißrate und Hautdurchblutung, die kritischen Umweltgrenzen liegen niedriger als bei Jüngeren. CDC stuft Menschen ab 65 Jahren als Risikogruppe ein. Fitnesstragende, akklimatisierte Ältere können trotzdem ähnlich gut regulieren – das Alter allein erklärt nicht alles.",
+    konfidenz: "mittel",
+    einschraenkung:
+      "Kein Verband nennt einen WBGT-Abzug in °C für Senioren. Die App setzt deshalb denselben kleinen Vorsichtsabzug wie bei unter 16-Jährigen (−1 °C) und sperrt die Leistungsstufe auf Breitensport.",
   },
   acsm_fallback_beachvolleyball: {
     id: "acsm_fallback_beachvolleyball",
@@ -240,9 +254,6 @@ export const sourcesRegistry: Record<SourceId, Source> = {
 
 export const LOW_CONFIDENCE_BADGE =
   "Kein offizieller Verbandsgrenzwert – Näherung";
-
-export const FALLBACK_AGE_HINT =
-  "Fallback-Wert gilt bereits konservativ für alle Altersgruppen";
 
 export const WHY_THESE_VALUES_LABEL = "Warum diese Werte? →";
 export const SOURCES_SECTION_ID = "quellen";
