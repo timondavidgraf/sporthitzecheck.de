@@ -261,7 +261,9 @@ function sanitize(raw: unknown): FormState {
     startTime: "",
     endTime: "",
     locationLabel:
-      typeof v.locationLabel === "string" ? v.locationLabel : DEFAULT_FORM.locationLabel,
+      typeof v.locationLabel === "string"
+        ? v.locationLabel.replace(/^Aktueller Standort \(/, "Standort (")
+        : DEFAULT_FORM.locationLabel,
     lat: typeof v.lat === "number" && Number.isFinite(v.lat) ? v.lat : null,
     lng: typeof v.lng === "number" && Number.isFinite(v.lng) ? v.lng : null,
   };
@@ -396,7 +398,7 @@ export default function HomePage() {
           ...prev,
           lat: latitude,
           lng: longitude,
-          locationLabel: `Aktueller Standort (${latitude.toFixed(3)}, ${longitude.toFixed(3)})`,
+          locationLabel: `Standort (${latitude.toFixed(3)}, ${longitude.toFixed(3)})`,
         }));
         setQuery("");
         setEditingLocation(false);
@@ -619,7 +621,7 @@ export default function HomePage() {
 
             <div className="my-3 flex items-center gap-3 text-xs font-medium text-slate-400">
               <span className="h-px flex-1 bg-gray-200" />
-              oder Vereinsname
+              oder Vereinsname/Adresse anpassen
               <span className="h-px flex-1 bg-gray-200" />
             </div>
 
@@ -711,7 +713,7 @@ export default function HomePage() {
 
             {hasLocation && (
               <p className="mt-2 text-xs text-slate-400">
-                Bisher gespeichert: {form.locationLabel}
+                Aktuell gespeichert: {form.locationLabel}
               </p>
             )}
           </>

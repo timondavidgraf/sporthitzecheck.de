@@ -4,6 +4,7 @@ export const LEGAL_DISCLAIMER =
 
 /** Einzige Kontaktadresse für Feedback, Fehler und Impressum. */
 export const CONTACT_EMAIL = "team@sporthitzecheck.de";
+export const LINKEDIN_URL = "https://www.linkedin.com/in/timon-graf-503bb4186/";
 
 /** Kurztext für den (i)-Tooltip neben der WBGT-Angabe. */
 export const WBGT_EXPLAINER =
