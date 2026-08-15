@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "SportHitzeCheck – Hitze-Ampel für den Sportplatz",
     description: DESCRIPTION,
   },
@@ -42,8 +42,12 @@ export const metadata: Metadata = {
     googleBot: { index: true, follow: true },
   },
   icons: {
-    icon: "/brand/icon.png",
-    apple: "/brand/apple-touch-icon.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/brand/icon.png", type: "image/png", sizes: "256x256" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: "/brand/icon.png",
   },
 };
 
