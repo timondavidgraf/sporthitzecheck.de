@@ -1,0 +1,49 @@
+# Projekt: SportHitzeCheck - WBGT Frontend MVP
+
+## 1. Architektur & Tech Stack
+- **Typ:** Frontend-Only WebApp (Mobile-First) & Shareable Widget.
+- **Stack:** Next.js 14+ (App Router), React, TypeScript, Tailwind CSS.
+- **Libs:** `recharts` (Balkendiagramm), `lucide-react` (Icons).
+- **Datenfluss:** `/` (Formular) speichert in `localStorage` -> Redirect mit URL-Parametern zu `/radar` (Ergebnis).
+
+## 2. API & Caching
+- **API:** Open-Meteo (kostenlos, keine Auth). Parameter: `temperature_2m, relative_humidity_2m, wind_speed_10m, direct_radiation, diffuse_radiation`.
+- **Caching:** API-Responses zwingend im `localStorage` cachen. Key: `lat_lng`. TTL: 60 Minuten.
+
+## 3. Domänenlogik (WBGT Berechnung)
+Berechne Basis-WBGT aus API-Daten. Addiere Offsets basierend auf URL-Parametern:
+1. **Untergrund (`surface`):**
+   - `grass` (Naturrasen): +0.0 °C
+   - `turf_black` (Kunstrasen dunkel/SBR): +4.5 °C
+   - `turf_light` (Kunstrasen hell/Kork): +2.5 °C
+   - `sand_clay` (Asche/Sand): +1.5 °C
+2. **Schatten (`shadow`):** 
+   - `none`: 100% des Untergrund-Offsets.
+   - `partial`: 50% des Untergrund-Offsets.
+   - `full`: 0% Untergrund-Offset.
+3. **Bewässerung (`watered`):** 
+   - `true`: -2.5 °C vom finalen WBGT (wirkt nur in Stunde 1 der Prognose).
+
+## 4. Ampelsystem & Altersklassen (ACSM)
+Kategorisierung basiert auf dem max. WBGT-Wert im Vorhersagezeitraum.
+**Erwachsene (`age=adult`):**
+- 🟢 Grün (< 25.0 °C): Normaler Betrieb.
+- 🟡 Gelb (25.0 - 27.7 °C): Trinkpausen einplanen.
+- 🟠 Orange (27.8 - 30.0 °C): Zwingend Kühlpausen (2x 3 Min).
+- 🔴 Rot (> 30.0 °C): Spielabsage / Verschiebung dringend empfohlen.
+**Kinder/Jugend (`age=youth`):**
+- Alle Schwellenwerte um exakt 1.0 °C absenken (Rot beginnt bei > 29.0 °C).
+
+## 5. Routen & UI-Vorgaben
+- **Client Components (`"use client"`):** Zwingend für LocalStorage und `useSearchParams`.
+- **Route `/` (Eingabe):**
+  - Felder: Sportart (Fußball default), Alter, Untergrund, Schatten, Bewässerung.
+  - Geo-Input: Button "Aktueller Standort" (`navigator.geolocation`) + manuelles Textfeld.
+  - State: Bei Änderung sofort in `localStorage` speichern (für Autocomplete beim nächsten Besuch).
+  - Submit: Push zu `/radar?lat=...&lng=...&surface=...` etc.
+- **Route `/radar` (Widget/Resultat):**
+  - Liest nur `useSearchParams()`.
+  - Fetcht Wetter für aktuelle Zeit + nächste 3 Stunden.
+  - UI Oben: Große Warn-Ampel (Farbe des Max-WBGT) + Text-Handlungsanweisung.
+  - UI Mitte: `recharts` Balkendiagramm (3-4 Balken für die Stunden), gefärbt nach Ampel-Logik.
+  - UI Unten: "Ergebnis Teilen" Button (`navigator.share` API mit Fallback Clipboard).

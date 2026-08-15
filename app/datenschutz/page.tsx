@@ -1,0 +1,185 @@
+import type { Metadata } from "next";
+import { LegalShell } from "@/lib/LegalShell";
+import { CONTACT_EMAIL, LEGAL_OPERATOR } from "@/lib/legal";
+
+export const metadata: Metadata = {
+  title: "Datenschutz – SportHitzeCheck",
+  description:
+    "Datenschutzerklärung zu SportHitzeCheck, Google Places, Vercel Analytics und Sentry.",
+};
+
+export default function DatenschutzPage() {
+  return (
+    <LegalShell title="Datenschutzerklärung">
+      <p>
+        Diese Erklärung informiert über die Verarbeitung personenbezogener Daten
+        beim Besuch von SportHitzeCheck gemäß der Datenschutz-Grundverordnung
+        (DSGVO) und dem Bundesdatenschutzgesetz (BDSG).
+      </p>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">1. Verantwortliche Stelle</h2>
+        <p className="mt-1.5 whitespace-pre-line">
+          {LEGAL_OPERATOR.name}
+          {"\n"}
+          {LEGAL_OPERATOR.addition}
+          {"\n"}
+          {LEGAL_OPERATOR.street}
+          {"\n"}
+          {LEGAL_OPERATOR.zipCity}
+          {"\n"}
+          E-Mail: {LEGAL_OPERATOR.email}
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">2. Keine Nutzerkonten</h2>
+        <p className="mt-1.5">
+          SportHitzeCheck erfordert keine Registrierung. Es werden keine Profile
+          angelegt. Angaben zu Sportart, Zeitpunkt und Standort fließen in die
+          Ergebnis-URL ein und können zusätzlich im lokalen Speicher des Browsers
+          (localStorage) liegen. Diese Daten verbleiben auf dem jeweiligen Gerät
+          und werden von uns nicht in einem Nutzerkonto gespeichert.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">3. Hosting</h2>
+        <p className="mt-1.5">
+          Die Website wird bei Vercel Inc., 440 N Barranca Ave #4133, Covina, CA
+          91723, USA, betrieben. Beim Aufruf werden technisch notwendige
+          Server-Logdaten verarbeitet (z. B. IP-Adresse, Zeitpunkt, aufgerufene
+          Seite). Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (Betrieb und
+          Sicherheit des Angebots). Vercel kann Daten in den USA verarbeiten;
+          Vercel stützt die Übermittlung auf Standardvertragsklauseln.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">
+          4. Standortsuche über Google Maps / Places API
+        </h2>
+        <p className="mt-1.5">
+          Wenn ein Vereinsname oder eine Adresse gesucht wird, sendet unser Server
+          die Suchanfrage an die Google Maps Platform (Places Text Search, bei
+          Bedarf Geocoding) der Google Ireland Limited, Gordon House, Barrow
+          Street, Dublin 4, Irland, bzw. verbundener Unternehmen von Google LLC,
+          USA. Dabei können Suchbegriff, ungefähre IP-Adresse und technische
+          Anfragedaten an Google übermittelt werden. Google kann diese Daten in
+          den USA verarbeiten.
+        </p>
+        <p>
+          Zweck ist die Umwandlung einer Ortsangabe in Koordinaten für die
+          Wetterabfrage. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO
+          (funktionsfähige Standortsuche) bzw. – soweit erforderlich – Art. 6 Abs.
+          1 lit. a DSGVO. Die Übermittlung in ein Drittland stützt sich auf die
+          Standardvertragsklauseln der EU-Kommission im Rahmen der Google Maps
+          Platform. Weitere Hinweise:{" "}
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            Datenschutzerklärung von Google
+          </a>
+          .
+        </p>
+        <p>
+          Die aktuelle Position über die Browser-Ortung wird nur lokal im Gerät
+          ermittelt und nicht an Google gesendet, sofern nicht zusätzlich eine
+          Textsuche ausgelöst wird.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">5. Wetterdaten (Open-Meteo)</h2>
+        <p className="mt-1.5">
+          Für die WBGT-Näherung werden Koordinaten an die API von Open-Meteo
+          übermittelt. Open-Meteo erhält den Standort als geographische Koordinate
+          sowie den Zeitraum der Abfrage, nicht den eingegebenen Vereinsnamen.
+          Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">
+          6. Vercel Web Analytics (cookielos)
+        </h2>
+        <p className="mt-1.5">
+          Wir nutzen Vercel Web Analytics, um Seitenaufrufe in aggregierter Form
+          zu verstehen (z. B. welche Seite wie oft aufgerufen wird). Der Dienst
+          arbeitet ohne Cookies und ohne dauerhafte Kennung im Browser. Es werden
+          keine Werbeprofile gebildet. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+          DSGVO (Reichweitenmessung in datensparsamem Umfang). Weitere Angaben:
+          Dokumentation von Vercel Web Analytics.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">
+          7. Fehlermeldungen über Sentry (anonymisierte Logs)
+        </h2>
+        <p className="mt-1.5">
+          Zur Stabilität der Anwendung setzen wir Sentry (Functional Software,
+          Inc., USA) ein. Übermittelt werden technische Fehlerinformationen
+          (z. B. Fehlertyp, betroffene Code-Stelle, Browser-Typ). Die
+          Konfiguration ist auf Datenschutz ausgelegt:{" "}
+          <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
+            sendDefaultPii: false
+          </code>
+          . IP-Adressen, Cookies und andere Identifikatoren werden nicht
+          mitsendet bzw. vor dem Versand entfernt. Sentry ist nur aktiv, wenn
+          eine DSN-Umgebungsvariable gesetzt ist.
+        </p>
+        <p>
+          Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (Fehlerbehebung). Eine
+          Übermittlung in die USA kann im Rahmen der Auftragsverarbeitung
+          erfolgen und stützt sich auf Standardvertragsklauseln.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">8. Kartenausschnitt</h2>
+        <p className="mt-1.5">
+          Die Standortvorschau bindet eine Karte von OpenStreetMap ein. Beim Laden
+          des Kartenausschnitts kann der Kartenanbieter die IP-Adresse und den
+          angefragten Kartenbereich verarbeiten. Rechtsgrundlage ist Art. 6 Abs. 1
+          lit. f DSGVO.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">9. Speicherdauer</h2>
+        <p className="mt-1.5">
+          Server-Logs werden vom Hoster üblicherweise kurzfristig vorgehalten.
+          Analytics- und Fehlerdaten werden nur so lange gespeichert, wie es für
+          den jeweiligen Zweck erforderlich ist. Daten im localStorage können Sie
+          selbst im Browser löschen.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">10. Ihre Rechte</h2>
+        <p className="mt-1.5">
+          Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
+          der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen
+          Verarbeitungen auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Soweit eine
+          Einwilligung Grundlage ist, können Sie diese mit Wirkung für die Zukunft
+          widerrufen. Außerdem besteht ein Beschwerderecht bei einer
+          Datenschutzaufsichtsbehörde.
+        </p>
+        <p>
+          Kontakt für Datenschutzanfragen:{" "}
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            {CONTACT_EMAIL}
+          </a>
+          .
+        </p>
+      </section>
+    </LegalShell>
+  );
+}
