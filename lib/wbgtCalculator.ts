@@ -1,11 +1,13 @@
-/**
- * SportHitzeCheck – WBGT Berechnung & Datenbeschaffung (Sprint 1)
- *
- * Enthaelt:
- *  - fetchWeatherData(): Open-Meteo Abruf inkl. localStorage-Cache (TTL 60 Min)
- *  - calculateWBGTForecast(): WBGT-Naeherung + Untergrund-/Schatten-/Bewaesserungs-Logik
- *  - Ampel-Kategorisierung nach FIFA/ACSM plus Breitensport- und Alters-Offsets
- */
+import {
+  appliedBounds,
+  DEFAULT_INTENSITY,
+  hasNumericSurfaceOffset,
+  numericSurfaceOffset,
+  type IntensityLevel,
+  type Sport,
+} from './sportsConfig';
+import { getDisplayRecommendation } from './recommendations';
+import type { SourceId } from './sourcesRegistry';
 
 // ---------------------------------------------------------------------------
 // Typen
@@ -21,9 +23,16 @@ export type Surface =
   | 'clay_red'
   | 'hardcourt'
   // Beachvolleyball
-  | 'quartz_sand';
+  | 'quartz_sand'
+  | 'asphalt'
+  | 'gravel'
+  | 'tartan'
+  | 'hockey_water'
+  | 'turf_sand'
+  | 'turf_epdm'
+  | 'clay_red_dry';
 export type Shadow = 'none' | 'partial' | 'full';
-export type AgeGroup = 'child' | 'youth' | 'adult' | 'senior';
+export type AgeGroup = 'recreational' | 'youth' | 'elite';
 export type EventType = 'training' | 'match' | 'tournament' | 'other';
 export type ColorCode = 'green' | 'yellow' | 'orange' | 'red';
 
@@ -87,6 +96,8 @@ export interface WBGTBreakdown {
 
   /** Roher Untergrund-Offset laut Tabelle, noch ohne Beschattung */
   surfaceOffset: number;
+  /** false, wenn der Untergrund nur einen qualitativen Warnhinweis hat */
+  surfaceOffsetApplied: boolean;
   /** Untergrund-Offset nach Beschattungsfaktor */
   effectiveSurfaceOffset: number;
   /** Was die Beschattung vom Untergrund-Offset wegnimmt (<= 0) */
@@ -107,6 +118,9 @@ export interface WBGTHour {
   recommendationPoints: string[];
   /** Liegt diese Stunde im angegebenen Zeitraum der Einheit? */
   inSession: boolean;
+  recommendationQuelleId: SourceId;
+  officialDecisionNote?: string;
+  hauptempfehlung: string;
   breakdown: WBGTBreakdown;
 }
 
@@ -139,17 +153,6 @@ export const CACHE_TTL_MS = 60 * 60 * 1000;
  */
 const CACHE_PREFIX = 'wbgt_cache_v2_';
 
-/** Untergrund-Offsets in °C (claude.md §3.1, erweitert um Tennis und Beachvolleyball) */
-export const SURFACE_OFFSETS: Record<Surface, number> = {
-  grass: 0.0,
-  turf_black: 4.5,
-  turf_light: 2.5,
-  sand_clay: 1.5,
-  clay_red: 1.5,
-  hardcourt: 3.0,
-  quartz_sand: 1.5,
-};
-
 /** Anteil von Direktstrahlung und Untergrund-Offset, der bei der Beschattung wirkt. */
 export const SHADOW_FACTORS: Record<Shadow, number> = {
   none: 1.0,
@@ -170,29 +173,6 @@ export const SHADOW_DIFFUSE_FACTORS: Record<Shadow, number> = {
 /** Kuehlung durch frische Bewaesserung – wirkt nur in der aktuellen Stunde (claude.md §3.3) */
 export const WATERING_COOLING = 2.5;
 
-/** Untere Grenzen der Ampelstufen nach FIFA/ACSM fuer den akklimatisierten Profibereich. */
-export const ADULT_THRESHOLDS = {
-  yellow: 25.0,
-  orange: 27.8,
-  red: 30.0,
-} as const;
-
-/**
- * Abzug von den FIFA/ACSM-Schwellen: negativ = Warnung greift früher.
- * Amateure sind seltener hitzeakklimatisiert und haben keine medizinische
- * Abteilung an der Seitenlinie – deshalb ein Breitensport-Puffer bei allen Klassen.
- */
-export const AGE_OFFSETS: Record<AgeGroup, number> = {
-  child: -1.5,
-  youth: -0.8,
-  adult: -1.0,
-  senior: -1.2,
-};
-
-export function getAgeOffset(ageGroup: AgeGroup): number {
-  return AGE_OFFSETS[ageGroup] ?? AGE_OFFSETS.adult;
-}
-
 /** Gewichte der WBGT-Formel im Freien: 0.7·Tw + 0.2·Tg + 0.1·Ta */
 export const WBGT_WET_BULB_WEIGHT = 0.7;
 export const WBGT_GLOBE_WEIGHT = 0.2;
@@ -205,153 +185,6 @@ export const SOLAR_DIFFUSE_WEIGHT = 0.4;
 /** Tg-Zuschlag: 0.045 · Solar / (1 + Wind), gedeckelt */
 export const GLOBE_SOLAR_COEF = 0.045;
 export const GLOBE_DELTA_MAX = 20;
-
-/**
- * Handlungsempfehlungen je Ereignistyp und Ampelstufe – kurze Stichpunkte
- * für die Ampel-Box. Hintergrund zu KSI/NATA, AAP und Penn State steht
- * im Quellen-Modul.
- */
-const RECOMMENDATIONS: Record<
-  EventType,
-  Record<ColorCode, { title: string; points: string[] }>
-> = {
-  training: {
-    green: {
-      title: 'Training möglich',
-      points: [
-        'Trinkpausen wie gewohnt, Getränke frei zugänglich',
-        'Vor, während und nach der Einheit trinken',
-        'Kinder: unbeschränkten Trinkzugang sicherstellen',
-      ],
-    },
-    yellow: {
-      title: 'Intensität reduzieren',
-      points: [
-        'Keine Dauerläufe oder hochintensive Blöcke',
-        'Trink- und Schattenpausen alle 15–20 Minuten',
-        'Kinder: kürzere Belastungsintervalle',
-      ],
-    },
-    orange: {
-      title: 'Belastung deutlich drosseln',
-      points: [
-        'Kühlpausen alle 15–20 Minuten im Schatten',
-        'Intensität stark reduzieren',
-        'Kinder: kürzere Einheiten, mehr Pausen',
-      ],
-    },
-    red: {
-      title: 'Training verlegen oder absagen',
-      points: [
-        'Keine hochintensive Belastung',
-        'In kühlere Stunden verlegen oder absagen',
-        'Kinder und Jugendteams besonders schützen',
-      ],
-    },
-  },
-  match: {
-    green: {
-      title: 'Spielbetrieb möglich',
-      points: [
-        'Getränke am Spielfeldrand bereithalten',
-        'Auch bei grüner Ampel regelmäßig trinken',
-        'Jugendspiele: Trinken auch während des Spiels',
-      ],
-    },
-    yellow: {
-      title: 'Zusätzliche Trinkpausen einplanen',
-      points: [
-        'Pro Halbzeit mindestens eine Extra-Trinkpause',
-        'Spielleitung vor Anpfiff informieren',
-        'Ersatzbänke in den Schatten',
-      ],
-    },
-    orange: {
-      title: 'Kühlpausen im Spielplan verankern',
-      points: [
-        'Trink- und Kühlpausen verbindlich abstimmen',
-        'Kühlung in der Halbzeit, Schatten für Auswechselnde',
-        'Jugend: Spielzeit begrenzen, Wechsel nutzen',
-      ],
-    },
-    red: {
-      title: 'Spielverlegung prüfen',
-      points: [
-        'Anpfiff verschieben oder absagen',
-        'Ohne Akklimatisierung Abbruch prüfen',
-        'Jugendspiele besonders schützen',
-      ],
-    },
-  },
-  tournament: {
-    green: {
-      title: 'Turnierbetrieb möglich',
-      points: [
-        'Schatten und Getränke für wartende Teams',
-        'Zwischen den Spielen hydrieren',
-        'Kinder nicht in der prallen Sonne warten lassen',
-      ],
-    },
-    yellow: {
-      title: 'Schattenzonen und Trinkpausen fest einplanen',
-      points: [
-        'Trinkpausen in jedem Spiel verankern',
-        'Wartezonen beschatten',
-        'Jugendteams: Wartezeiten in der Sonne kurz halten',
-      ],
-    },
-    orange: {
-      title: 'Regeneration zwischen den Spielen strecken',
-      points: [
-        'Längere Pausen, Kühlung an allen Wartezonen',
-        'Spielzahl am heißesten Teil des Tages reduzieren',
-        'Jugend: weniger Spiele in der Hitze',
-      ],
-    },
-    red: {
-      title: 'Turnier unterbrechen oder verlegen',
-      points: [
-        'Spiele in kühlere Stunden legen',
-        'Turnier unterbrechen oder verlegen',
-        'Jugendturniere besonders streng schützen',
-      ],
-    },
-  },
-  other: {
-    green: {
-      title: 'Normaler Betrieb möglich',
-      points: [
-        'Trinkpausen einhalten, Schatten nutzen',
-        'Vor, während und nach der Belastung trinken',
-        'Kinder: unbeschränkten Trinkzugang',
-      ],
-    },
-    yellow: {
-      title: 'Belastung anpassen',
-      points: [
-        'Direkte Sonne meiden',
-        'Trinkpausen mindestens alle 15–20 Minuten',
-        'Kinder: kürzere Intervalle',
-      ],
-    },
-    orange: {
-      title: 'Kühlpausen einlegen',
-      points: [
-        'Intensität deutlich drosseln',
-        'Schatten und Getränke sicherstellen',
-        'Kinder und Jugendliche häufiger pausieren',
-      ],
-    },
-    red: {
-      title: 'Verlegung oder Absage prüfen',
-      points: [
-        'Keine längere Belastung in der prallen Sonne',
-        'Verlegung oder Absage prüfen',
-        'Kinder besonders schützen',
-      ],
-    },
-  },
-};
 
 /** Kontextstunden, die vor und nach der Einheit mit angezeigt werden. */
 export const CONTEXT_HOURS = 5;
@@ -649,48 +482,52 @@ export function approximateWBGT(
   return WBGT_WET_BULB_WEIGHT * tw + WBGT_GLOBE_WEIGHT * globe + WBGT_AIR_WEIGHT * tempC;
 }
 
-export function getAmpelThresholds(ageGroup: AgeGroup): {
-  yellow: number;
-  orange: number;
-  red: number;
-} {
-  const offset = getAgeOffset(ageGroup);
-  return {
-    yellow: ADULT_THRESHOLDS.yellow + offset,
-    orange: ADULT_THRESHOLDS.orange + offset,
-    red: ADULT_THRESHOLDS.red + offset,
-  };
+export function getAmpelThresholds(
+  sport: Sport,
+  ageGroup: AgeGroup,
+  intensity: IntensityLevel = DEFAULT_INTENSITY
+) {
+  return appliedBounds(sport, ageGroup, intensity);
 }
 
-// ---------------------------------------------------------------------------
-// Ampelsystem
-// ---------------------------------------------------------------------------
-
 /**
- * Ampelstufe fuer einen WBGT-Wert. FIFA/ACSM-Schwellen plus {@link AGE_OFFSETS}
- * (Breitensport-Puffer und Altersklasse).
+ * Ampelstufe fuer einen WBGT-Wert. Grenzen inklusive der jeweiligen *_max-Werte
+ * (Grün ≤ gruen_max, danach Gelb ≤ gelb_max, Orange ≤ orange_max, sonst Rot).
  */
-export function getColorCode(wbgtValue: number, ageGroup: AgeGroup): ColorCode {
-  const { yellow, orange, red } = getAmpelThresholds(ageGroup);
+export function getColorCode(
+  wbgtValue: number,
+  sport: Sport,
+  ageGroup: AgeGroup,
+  intensity: IntensityLevel = DEFAULT_INTENSITY
+): ColorCode {
+  const { gruen_max, gelb_max, orange_max } = getAmpelThresholds(
+    sport,
+    ageGroup,
+    intensity
+  );
 
-  if (wbgtValue > red) return 'red';
-  if (wbgtValue >= orange) return 'orange';
-  if (wbgtValue >= yellow) return 'yellow';
+  if (wbgtValue > orange_max) return 'red';
+  if (wbgtValue > gelb_max) return 'orange';
+  if (wbgtValue > gruen_max) return 'yellow';
   return 'green';
 }
 
 export function getRecommendation(
+  sport: Sport,
   colorCode: ColorCode,
-  eventType: EventType = 'training'
-): { title: string; points: string[] } {
-  return RECOMMENDATIONS[eventType][colorCode];
+  eventType: EventType = 'training',
+  wbgtValue = 0
+) {
+  return getDisplayRecommendation(sport, colorCode, eventType, wbgtValue);
 }
 
 export function getRecommendationLabel(
+  sport: Sport,
   colorCode: ColorCode,
-  eventType: EventType = 'training'
+  eventType: EventType = 'training',
+  wbgtValue = 0
 ): string {
-  return getRecommendation(colorCode, eventType).title;
+  return getRecommendation(sport, colorCode, eventType, wbgtValue).headline;
 }
 
 // ---------------------------------------------------------------------------
@@ -702,8 +539,11 @@ export interface ForecastRequest {
   shadow: Shadow;
   watered: boolean;
   ageGroup: AgeGroup;
+  sport: Sport;
   /** Art der Belastung – steuert die Handlungsempfehlung, nicht den WBGT-Wert */
   eventType?: EventType;
+  /** Wirkt auf Ampel-Schwellen, nicht auf den WBGT-Wert */
+  intensity?: IntensityLevel;
   /** Erste Stunde der Einheit (Index in `apiData.hourly.*`) */
   sessionFromIndex: number;
   /** Letzte Stunde der Einheit, einschliesslich */
@@ -741,7 +581,9 @@ export function calculateWBGTForecast(
     shadow,
     watered,
     ageGroup,
+    sport,
     eventType = 'training',
+    intensity = DEFAULT_INTENSITY,
     contextHours = CONTEXT_HOURS,
     displayHourFrom = DISPLAY_HOUR_FROM,
     displayHourTo = DISPLAY_HOUR_TO,
@@ -753,12 +595,16 @@ export function calculateWBGTForecast(
   const sessionFrom = clamp(request.sessionFromIndex);
   const sessionTo = clamp(Math.max(request.sessionToIndex, request.sessionFromIndex));
 
-  const surfaceOffset = SURFACE_OFFSETS[surface] ?? 0;
+  const surfaceOffsetApplied = hasNumericSurfaceOffset(sport, surface);
+  const surfaceOffset = numericSurfaceOffset(sport, surface);
   const shadowFactor = SHADOW_FACTORS[shadow] ?? 1;
   const diffuseFactor = SHADOW_DIFFUSE_FACTORS[shadow] ?? 1;
-  // Auf 0.1 °C gerundet, damit die Aufschlüsselung im Dashboard exakt aufgeht
-  // (Halbschatten auf +4.5 ergäbe sonst 2.25). Physikalisch irrelevant.
-  const effectiveSurfaceOffset = round1(surfaceOffset * shadowFactor);
+  // Beschattung multipliziert nur belegte Zahlen-Offsets. Reine Warnhinweise
+  // (wbgtOffset = null) bleiben numerisch 0. Auf 0.1 °C gerundet, damit die
+  // Aufschlüsselung im Dashboard exakt aufgeht.
+  const effectiveSurfaceOffset = surfaceOffsetApplied
+    ? round1(surfaceOffset * shadowFactor)
+    : 0;
   const shadowAdjustment = round1(effectiveSurfaceOffset - surfaceOffset);
 
   const forecast: WBGTHour[] = [];
@@ -810,15 +656,18 @@ export function calculateWBGTForecast(
     const wbgtValue = round1(
       baseWbgt + shadeRadiationAdjustment + effectiveSurfaceOffset + wateringOffset
     );
-    const colorCode = getColorCode(wbgtValue, ageGroup);
-    const recommendation = getRecommendation(colorCode, eventType);
+    const colorCode = getColorCode(wbgtValue, sport, ageGroup, intensity);
+    const recommendation = getRecommendation(sport, colorCode, eventType, wbgtValue);
 
     forecast.push({
       timestamp,
       wbgtValue,
       colorCode,
-      recommendationLabel: recommendation.title,
-      recommendationPoints: recommendation.points,
+      recommendationLabel: recommendation.headline,
+      recommendationPoints: recommendation.stichpunkte,
+      hauptempfehlung: recommendation.hauptempfehlung,
+      recommendationQuelleId: recommendation.quelle_id,
+      officialDecisionNote: recommendation.officialDecisionNote,
       inSession,
       breakdown: {
         temperature: temp,
@@ -842,6 +691,7 @@ export function calculateWBGTForecast(
         shadedWbgt,
         shadeRadiationAdjustment,
         surfaceOffset,
+        surfaceOffsetApplied,
         effectiveSurfaceOffset,
         shadowAdjustment,
         wateringOffset,
@@ -882,6 +732,9 @@ export function getForecastSummary(forecast: WBGTHour[]): {
   colorCode: ColorCode;
   recommendationLabel: string;
   recommendationPoints: string[];
+  hauptempfehlung: string;
+  recommendationQuelleId: SourceId;
+  officialDecisionNote?: string;
 } | null {
   if (!forecast.length) return null;
 
@@ -892,6 +745,9 @@ export function getForecastSummary(forecast: WBGTHour[]): {
     colorCode: peak.colorCode,
     recommendationLabel: peak.recommendationLabel,
     recommendationPoints: peak.recommendationPoints,
+    hauptempfehlung: peak.hauptempfehlung,
+    recommendationQuelleId: peak.recommendationQuelleId,
+    officialDecisionNote: peak.officialDecisionNote,
   };
 }
 
@@ -923,7 +779,9 @@ export interface SessionParams {
   shadow: Shadow;
   watered: boolean;
   ageGroup: AgeGroup;
+  sport: Sport;
   eventType?: EventType;
+  intensity?: IntensityLevel;
   startTime: string;
   endTime: string;
 }
@@ -951,7 +809,9 @@ export function summarizeSession(
     shadow: params.shadow,
     watered: params.watered,
     ageGroup: params.ageGroup,
+    sport: params.sport,
     eventType: params.eventType,
+    intensity: params.intensity,
     sessionFromIndex,
     sessionToIndex,
     contextHours: 0,

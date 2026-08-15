@@ -12,12 +12,15 @@ import {
   CloudSun,
   Droplets,
   Flag,
+  Gauge,
   Grid2x2,
   LocateFixed,
   Loader2,
   MapPin,
   Pencil,
   Search,
+  ThermometerSun,
+  Trees,
   Trophy,
   Users,
 } from "lucide-react";
@@ -27,17 +30,28 @@ import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
 import { OsmMap } from "@/lib/OsmMap";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
+import { SourceInfoButton } from "@/lib/ScienceSources";
+import {
+  getSurfaceConfig,
+  hasNumericSurfaceOffset,
+  showsSurfaceSourceInfo,
+} from "@/lib/sportsConfig";
 import { isGoogleQuotaOrOutage, messageForGoogleStatus } from "@/lib/googleStatus";
 import {
   AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
   DEFAULT_AGE,
   DEFAULT_EVENT,
+  DEFAULT_INTENSITY,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
   EVENT_OPTIONS,
+  INTENSITY_OPTIONS,
+  ageGroupHint,
+  intensityHint,
   durationForEvent,
+  parseAgeGroup,
   parseOption,
   SHADOW_OPTIONS,
   shadowFactorLabel,
@@ -45,6 +59,7 @@ import {
   surfaceForSport,
   surfaceOffsetLabel,
   surfacesForSport,
+  type IntensityLevel,
   type Sport,
 } from "@/lib/formOptions";
 
@@ -56,6 +71,7 @@ interface FormState {
   sport: Sport;
   ageGroup: AgeGroup;
   eventType: EventType;
+  intensity: IntensityLevel;
   surface: Surface;
   shadow: Shadow;
   watered: boolean;
@@ -178,6 +194,7 @@ const DEFAULT_FORM: FormState = {
   sport: DEFAULT_SPORT,
   ageGroup: DEFAULT_AGE,
   eventType: DEFAULT_EVENT,
+  intensity: DEFAULT_INTENSITY,
   surface: DEFAULT_SURFACE,
   shadow: DEFAULT_SHADOW,
   watered: false,
@@ -252,8 +269,9 @@ function sanitize(raw: unknown): FormState {
 
   return {
     sport,
-    ageGroup: parseOption(v.ageGroup, AGE_OPTIONS, DEFAULT_FORM.ageGroup),
+    ageGroup: parseAgeGroup(v.ageGroup),
     eventType: parseOption(v.eventType, EVENT_OPTIONS, DEFAULT_FORM.eventType),
+    intensity: parseOption(v.intensity, INTENSITY_OPTIONS, DEFAULT_FORM.intensity),
     // Untergrund muss zur Sportart passen (z.B. altes "turf_black" bei Tennis)
     surface: surfaceForSport(sport, surface),
     shadow: parseOption(v.shadow, SHADOW_OPTIONS, DEFAULT_FORM.shadow),
@@ -553,6 +571,7 @@ export default function HomePage() {
       sport: form.sport,
       age: form.ageGroup,
       event: form.eventType,
+      intensity: form.intensity,
       surface: form.surface,
       shadow: form.shadow,
       watered: String(form.watered),
@@ -566,6 +585,8 @@ export default function HomePage() {
   // --- UI ------------------------------------------------------------------
 
   const surfaceOptions = surfacesForSport(form.sport);
+  const selectedSurface = getSurfaceConfig(form.sport, form.surface);
+  const shadowAffectsSurfaceOffset = hasNumericSurfaceOffset(form.sport, form.surface);
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-6 lg:max-w-6xl">
@@ -757,7 +778,7 @@ export default function HomePage() {
             id="age"
             label="Altersklasse"
             icon={<Users className="size-4" />}
-            hint="Schwellen strenger als FIFA-Profi-Richtlinien (Breitensport-Puffer)."
+            hint={ageGroupHint(form.sport)}
             value={form.ageGroup}
             options={AGE_OPTIONS}
             onChange={(v) => update("ageGroup", v)}
@@ -770,6 +791,15 @@ export default function HomePage() {
             value={form.eventType}
             options={EVENT_OPTIONS}
             onChange={changeEvent}
+          />
+          <SelectField
+            id="intensity"
+            label="Intensität"
+            icon={<Gauge className="size-4" />}
+            hint={intensityHint()}
+            value={form.intensity}
+            options={INTENSITY_OPTIONS}
+            onChange={(v) => update("intensity", v)}
           />
         </div>
       </Card>
@@ -866,28 +896,44 @@ export default function HomePage() {
             </legend>
 
             <div className="mt-1.5 flex flex-col gap-2">
-              {surfaceOptions.map((option) => (
-                <label
-                  key={option.value}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 transition has-checked:border-orange-500 has-checked:bg-orange-50"
-                >
-                  <input
-                    type="radio"
-                    name="surface"
-                    value={option.value}
-                    checked={form.surface === option.value}
-                    onChange={() => update("surface", option.value)}
-                    className="sr-only"
-                  />
-                  <SurfaceThumb surface={option.value} />
-                  <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
-                    {option.label}
-                  </span>
-                  <span className="shrink-0 text-xs font-semibold text-slate-400 tabular-nums">
-                    {surfaceOffsetLabel(option.value)}
-                  </span>
-                </label>
-              ))}
+              {surfaceOptions.map((option) => {
+                const config = getSurfaceConfig(form.sport, option.value);
+                const offsetLabel = surfaceOffsetLabel(form.sport, option.value);
+                return (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2.5 transition has-checked:border-orange-500 has-checked:bg-orange-50"
+                  >
+                    <input
+                      type="radio"
+                      name="surface"
+                      value={option.value}
+                      checked={form.surface === option.value}
+                      onChange={() => update("surface", option.value)}
+                      className="sr-only"
+                    />
+                    <SurfaceThumb surface={option.value} />
+                    <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
+                      {option.label}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      {showsSurfaceSourceInfo(config.konfidenz) ? (
+                        <SourceInfoButton sourceId={config.quelle_id} />
+                      ) : null}
+                      {offsetLabel == null ? (
+                        <ThermometerSun
+                          className="size-4 text-amber-600"
+                          aria-label="Kein Zahlen-Offset, Oberflächenhinweis"
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400 tabular-nums">
+                          {offsetLabel}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                );
+              })}
             </div>
           </fieldset>
 
@@ -922,11 +968,50 @@ export default function HomePage() {
               ))}
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-              Näherung: Anteil der Direktstrahlung, der den Platz noch erreicht. Wirkt auf
-              den WBGT und den Untergrund-Zuschlag. Der tatsächliche Schatten kann sich
-              während der Einheit mit Sonnenstand und Bewölkung ändern.
+              Näherung: Anteil der Direktstrahlung, der den Platz noch erreicht. Wirkt
+              immer auf den WBGT über die Strahlung
+              {shadowAffectsSurfaceOffset
+                ? " und auf den Untergrund-Zuschlag."
+                : ". Der gewählte Untergrund hat keinen Zahlen-Zuschlag – Beschattung ändert ihn numerisch nicht."}{" "}
+              Der tatsächliche Schatten kann sich während der Einheit mit Sonnenstand und
+              Bewölkung ändern.
             </p>
           </fieldset>
+
+          {selectedSurface.wbgtOffset == null ? (
+            <div
+              role="note"
+              className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 lg:col-span-2"
+            >
+              <ThermometerSun className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+              <p className="text-sm leading-relaxed text-amber-950">
+                {selectedSurface.hazardWarning ??
+                  "Kein belegter WBGT-Zahlenzuschlag für diesen Belag – nur qualitativer Hinweis."}
+              </p>
+            </div>
+          ) : selectedSurface.hazardWarning ? (
+            <div
+              role="note"
+              className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 lg:col-span-2"
+            >
+              <ThermometerSun className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
+              <p className="text-sm leading-relaxed text-amber-950">
+                {selectedSurface.hazardWarning}
+              </p>
+            </div>
+          ) : null}
+
+          {selectedSurface.hinweis ? (
+            <div
+              role="note"
+              className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 lg:col-span-2"
+            >
+              <Trees className="mt-0.5 size-4 shrink-0 text-slate-500" aria-hidden />
+              <p className="text-sm leading-relaxed text-slate-700">
+                {selectedSurface.hinweis}
+              </p>
+            </div>
+          ) : null}
 
           <label
             htmlFor="watered"

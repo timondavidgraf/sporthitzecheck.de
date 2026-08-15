@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -24,23 +24,32 @@ import {
   MapPin,
   RotateCcw,
   Share2,
+  ThermometerSun,
+  Trees,
 } from "lucide-react";
 import {
   AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
-  DEFAULT_AGE,
   DEFAULT_EVENT,
+  DEFAULT_INTENSITY,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
   EVENT_OPTIONS,
+  INTENSITY_OPTIONS,
+  ageOffsetLabel,
+  intensityOffsetLabel,
   labelFor,
+  parseAgeGroup,
   parseOption,
   SHADOW_OPTIONS,
   shortLabelFor,
   SPORT_OPTIONS,
-  ageOffsetLabel,
   surfaceForSport,
+  surfaceOffsetLabel,
+  surfacesForSport,
+  type IntensityLevel,
+  type Sport,
 } from "@/lib/formOptions";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
@@ -48,6 +57,26 @@ import { FeedbackSupport } from "@/lib/FeedbackSupport";
 import { WBGT_EXPLAINER } from "@/lib/legal";
 import { OsmMap } from "@/lib/OsmMap";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
+import { ThresholdsBox } from "@/lib/ThresholdsBox";
+import { ScienceSources, SourceInfoButton } from "@/lib/ScienceSources";
+import {
+  ageThresholdOffset,
+  baseBoundsForSport,
+  formatSignedOffset,
+  formatWbgtNumber,
+  getSurfaceConfig,
+  intensityHeadline,
+  intensityThresholdOffset,
+  showsSurfaceSourceInfo,
+  SPORTS,
+  surfaceOffsetBreakdownValue,
+  usesProfiThresholds,
+} from "@/lib/sportsConfig";
+import {
+  sourceHref,
+  sourcesRegistry,
+  type SourceId,
+} from "@/lib/sourcesRegistry";
 import {
   calculateWBGTForecast,
   fetchWeatherData,
@@ -196,8 +225,13 @@ function RadarContent() {
     Math.abs(lng) <= 180;
 
   const sport = parseOption(searchParams.get("sport"), SPORT_OPTIONS, DEFAULT_SPORT);
-  const ageGroup = parseOption(searchParams.get("age"), AGE_OPTIONS, DEFAULT_AGE);
+  const ageGroup = parseAgeGroup(searchParams.get("age"));
   const eventType = parseOption(searchParams.get("event"), EVENT_OPTIONS, DEFAULT_EVENT);
+  const intensity = parseOption(
+    searchParams.get("intensity"),
+    INTENSITY_OPTIONS,
+    DEFAULT_INTENSITY
+  );
   const surface = surfaceForSport(
     sport,
     parseOption(searchParams.get("surface"), ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
@@ -238,7 +272,9 @@ function RadarContent() {
           shadow,
           watered,
           ageGroup,
+          sport,
           eventType,
+          intensity,
           sessionFromIndex: findHourIndex(data, from),
           sessionToIndex: findHourIndex(data, to),
         });
@@ -254,7 +290,9 @@ function RadarContent() {
             shadow,
             watered,
             ageGroup,
+            sport,
             eventType,
+            intensity,
             startTime: shiftedStart,
             endTime: shiftedEnd,
           });
@@ -301,16 +339,9 @@ function RadarContent() {
   if (!summary) return <RadarError message="Für diesen Zeitraum liegen keine Daten vor." />;
 
   const peakHour = sessionHours.reduce((a, b) => (b.wbgtValue > a.wbgtValue ? b : a));
-  const thresholds = getAmpelThresholds(ageGroup);
   const sessionLabel = `${startTime.slice(11, 16)}–${endTime.slice(11, 16)}`;
   const confidence = confidenceFor(state.hoursAhead);
   const hasDayCompare = state.comparison.some((d) => d.offset !== 0 && d.maxWbgt !== null);
-
-  const tags = [
-    shortLabelFor(SPORT_OPTIONS, sport),
-    shortLabelFor(EVENT_OPTIONS, eventType),
-    shortLabelFor(AGE_OPTIONS, ageGroup),
-  ];
 
   const chartData = state.forecast.map((hour) => ({
     label: `${hour.timestamp.slice(11, 13)}`,
@@ -339,10 +370,12 @@ function RadarContent() {
         <AmpelBox summary={summary} peakHour={peakHour} />
 
         <ThresholdsBox
+          sport={sport}
           ageGroup={ageGroup}
           eventType={eventType}
+          intensity={intensity}
           colorCode={summary.colorCode}
-          thresholds={thresholds}
+          maxWbgt={summary.maxWbgt}
         />
 
         <PlaceBox
@@ -350,7 +383,7 @@ function RadarContent() {
           lng={lng}
           startTime={startTime}
           sessionLabel={sessionLabel}
-          tags={tags}
+          sport={sport}
           surface={surface}
           shadow={shadow}
           watered={watered}
@@ -428,15 +461,23 @@ function RadarContent() {
         <div className="md:col-span-2 lg:col-span-3">
           <Breakdown
             hour={peakHour}
+            sport={sport}
             surface={surface}
             shadow={shadow}
             ageGroup={ageGroup}
+            intensity={intensity}
             startLabel={peakHour.timestamp.slice(11, 16)}
           />
         </div>
 
         <div className="md:col-span-2 lg:col-span-3">
-          <ScienceSources />
+          <ScienceSources
+            sport={sport}
+            surface={surface}
+            ageGroup={ageGroup}
+            colorCode={summary.colorCode}
+            recommendationQuelleId={summary.recommendationQuelleId}
+          />
         </div>
 
         <Panel className="md:col-span-2 lg:col-span-3">
@@ -536,22 +577,37 @@ function watt(value: number): string {
 
 function Breakdown({
   hour,
+  sport,
   surface,
   shadow,
   ageGroup,
+  intensity,
   startLabel,
 }: {
   hour: WBGTHour;
+  sport: Sport;
   surface: Surface;
   shadow: Shadow;
   ageGroup: AgeGroup;
+  intensity: IntensityLevel;
   startLabel: string;
 }) {
   const b = hour.breakdown;
-  const thresholds = getAmpelThresholds(ageGroup);
+  const thresholds = getAmpelThresholds(sport, ageGroup, intensity);
   const shadeLabel = shortLabelFor(SHADOW_OPTIONS, shadow);
-  const surfaceLabel = labelFor(ALL_SURFACE_OPTIONS, surface);
+  const surfaceCfg = getSurfaceConfig(sport, surface);
+  const surfaceLabel = surfaceCfg.name;
   const ageLabel = labelFor(AGE_OPTIONS, ageGroup);
+  const intensityName = intensityHeadline(intensity);
+  const ageOff = ageThresholdOffset(sport, ageGroup);
+  const intensityOff = intensityThresholdOffset(intensity);
+  const offsetSum = ageOff + intensityOff;
+  const base = baseBoundsForSport(sport);
+  const sportSource = sourcesRegistry[SPORTS[sport].thresholds.sourceId];
+  const sportOrg = sportSource.organisation ?? sportSource.name;
+  const surfaceInfo = (
+    <SourceInfoButton sourceId={surfaceCfg.quelle_id} variant="anchor" />
+  );
 
   const formula =
     `${WBGT_WET_BULB_WEIGHT}×Tw + ${WBGT_GLOBE_WEIGHT}×Tg + ${WBGT_AIR_WEIGHT}×Ta`;
@@ -628,18 +684,31 @@ function Breakdown({
           title="4. Platzkorrekturen"
           hint={`Bewässerung: −${WATERING_COOLING.toFixed(1)} °C, nur in der ersten Stunde der Einheit.`}
         >
-          <BreakdownRow
-            label={`Zuschlag Untergrund (${surfaceLabel})`}
-            value={signed(b.surfaceOffset)}
-          />
-          <BreakdownRow
-            label={`× Beschattungsfaktor ${pct(b.shadowFactor)}`}
-            value={`${signed(b.effectiveSurfaceOffset)} wirksam`}
-          />
-          <BreakdownRow
-            label="Abzug Untergrund durch Beschattung"
-            value={signed(b.shadowAdjustment)}
-          />
+          {b.surfaceOffsetApplied ? (
+            <>
+              <BreakdownRow
+                label={`Zuschlag Untergrund (${surfaceLabel})`}
+                value={surfaceOffsetBreakdownValue(surfaceCfg)}
+                numeric={false}
+                info={surfaceInfo}
+              />
+              <BreakdownRow
+                label={`× Beschattungsfaktor ${pct(b.shadowFactor)}`}
+                value={`${signed(b.effectiveSurfaceOffset)} wirksam`}
+              />
+              <BreakdownRow
+                label="Abzug Untergrund durch Beschattung"
+                value={signed(b.shadowAdjustment)}
+              />
+            </>
+          ) : (
+            <BreakdownRow
+              label={`Zuschlag Untergrund (${surfaceLabel})`}
+              value={surfaceOffsetBreakdownValue(surfaceCfg)}
+              numeric={false}
+              info={surfaceInfo}
+            />
+          )}
           <BreakdownRow
             label={
               b.watered
@@ -648,6 +717,22 @@ function Breakdown({
             }
             value={signed(b.wateringOffset)}
           />
+          {surfaceCfg.hazardWarning ? (
+            <p
+              role="note"
+              className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-950"
+            >
+              {surfaceCfg.hazardWarning}
+            </p>
+          ) : null}
+          {surfaceCfg.hinweis ? (
+            <p
+              role="note"
+              className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-relaxed text-slate-700"
+            >
+              {surfaceCfg.hinweis}
+            </p>
+          ) : null}
         </BreakdownSection>
 
         <dl className="flex flex-col gap-1.5 text-sm">
@@ -666,22 +751,68 @@ function Breakdown({
         </dl>
 
         <BreakdownSection
-          title={`5. Ampel (${ageLabel})`}
-          hint={`FIFA/ACSM-Basis plus Breitensport-Offset ${ageOffsetLabel(
-            ageGroup
-          )} für diese Altersklasse.`}
+          title="5. Intensität & Dauer"
+          hint="ACGIH-Analogie auf die Ampel-Schwellen, nicht auf den WBGT-Wert. Alters- und Intensitäts-Offset sind beide Näherungen – zusammen nicht sicherer."
         >
-          <BreakdownRow label="Schwellen-Offset" value={ageOffsetLabel(ageGroup)} />
-          <BreakdownRow label="Grün" value={`< ${thresholds.yellow.toFixed(1)} °C`} />
+          <BreakdownRow
+            label={`Intensitäts-Offset (${intensityName})`}
+            value={intensityOffsetLabel(intensity)}
+            info={<SourceInfoButton sourceId="acgih_tlv" variant="anchor" />}
+          />
+          <BreakdownRow
+            label={`Alters-/Akklimatisierungs-Offset (${ageLabel})`}
+            value={ageOffsetLabel(sport, ageGroup)}
+            info={
+              usesProfiThresholds(sport) ? (
+                <SourceInfoButton sourceId="acsm_general" variant="anchor" />
+              ) : undefined
+            }
+          />
+          <BreakdownRow
+            label="Summe der Schwellen-Offsets"
+            value={formatSignedOffset(offsetSum)}
+          />
+        </BreakdownSection>
+
+        <BreakdownSection
+          title="6. Ampel"
+          hint="finale Schwelle = Verbands- bzw. Fallback-Schwelle + Alters-Offset + Intensitäts-Offset. Beide Offsets sind Sicherheits-Näherungen."
+        >
+          {usesProfiThresholds(sport) ? (
+            <BreakdownRow
+              label={`Verbandsschwelle (${labelFor(SPORT_OPTIONS, sport)}, ${sportOrg})`}
+              value={formatWbgtNumber(base.orange_max)}
+              info={<SourceInfoButton sourceId={sportSource.id} variant="anchor" />}
+            />
+          ) : (
+            <BreakdownRow
+              label="Fallback-Schwelle (ACSM, kein Verbandswert)"
+              value={formatWbgtNumber(base.orange_max)}
+              info={<SourceInfoButton sourceId={sportSource.id} variant="anchor" />}
+            />
+          )}
+          <BreakdownRow
+            label={`Alters-/Akklimatisierungs-Offset (${ageLabel})`}
+            value={ageOffsetLabel(sport, ageGroup)}
+          />
+          <BreakdownRow
+            label={`Intensitäts-Offset (${intensityName})`}
+            value={intensityOffsetLabel(intensity)}
+          />
+          <BreakdownRow
+            label="Finale Schwelle Rot"
+            value={formatWbgtNumber(thresholds.orange_max)}
+          />
+          <BreakdownRow label="Grün" value={`≤ ${thresholds.gruen_max.toFixed(1)} °C`} />
           <BreakdownRow
             label="Gelb"
-            value={`${thresholds.yellow.toFixed(1)} – ${thresholds.orange.toFixed(1)} °C`}
+            value={`> ${thresholds.gruen_max.toFixed(1)} – ${thresholds.gelb_max.toFixed(1)} °C`}
           />
           <BreakdownRow
             label="Orange"
-            value={`${thresholds.orange.toFixed(1)} – ${thresholds.red.toFixed(1)} °C`}
+            value={`> ${thresholds.gelb_max.toFixed(1)} – ${thresholds.orange_max.toFixed(1)} °C`}
           />
-          <BreakdownRow label="Rot" value={`> ${thresholds.red.toFixed(1)} °C`} />
+          <BreakdownRow label="Rot" value={`> ${thresholds.orange_max.toFixed(1)} °C`} />
         </BreakdownSection>
       </div>
     </details>
@@ -706,80 +837,29 @@ function BreakdownSection({
   );
 }
 
-function BreakdownRow({ label, value }: { label: string; value: string }) {
+function BreakdownRow({
+  label,
+  value,
+  info,
+  numeric = true,
+}: {
+  label: string;
+  value: string;
+  info?: ReactNode;
+  numeric?: boolean;
+}) {
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div className="flex items-start justify-between gap-3">
       <dt className="min-w-0 text-slate-600">{label}</dt>
-      <dd className="shrink-0 text-right font-semibold text-slate-800 tabular-nums">{value}</dd>
+      <dd
+        className={`flex max-w-[58%] items-start justify-end gap-1 text-right font-semibold text-slate-800 ${
+          numeric ? "tabular-nums" : ""
+        }`}
+      >
+        <span>{value}</span>
+        {info}
+      </dd>
     </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Wissenschaft & Quellen
-// ---------------------------------------------------------------------------
-
-const SOURCE_LINKS = [
-  {
-    title: "Korey Stringer Institute & NATA",
-    href: "https://ksi.uconn.edu/prevention/heat-acclimatization/",
-    note: "Strengere WBGT-Auslegung bei fehlender Hitzeakklimatisierung – zentral für den Amateur- und Breitensport.",
-  },
-  {
-    title: "American Academy of Pediatrics – Climatic Heat Stress",
-    href: "https://doi.org/10.1542/peds.2021-053127",
-    note: "Pädiatrische Thermoregulation: geringere Schweißeffizienz, daher strengere Schwellen für Kinder.",
-  },
-  {
-    title: "Penn State Center for Sports Surface Research",
-    href: "https://plantscience.psu.edu/research/centers/ssrc/research/synthetic-turf",
-    note: "SBR-Kunstrasen speichert und strahlt deutlich mehr Hitze ab als Naturrasen – Grundlage der Untergrund-Zuschläge.",
-  },
-] as const;
-
-function ScienceSources() {
-  return (
-    <details className="group rounded-xl border border-gray-200 bg-white shadow-sm">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3 text-sm font-semibold text-slate-700">
-        Medizinische Grundlagen & Quellen
-        <ChevronDown
-          className="size-4 shrink-0 text-slate-400 transition group-open:rotate-180"
-          aria-hidden
-        />
-      </summary>
-
-      <div className="flex flex-col gap-3 border-t border-gray-200 p-3 text-sm leading-relaxed text-slate-600">
-        <p>
-          Die Ampel startet von den WBGT-Schwellen der FIFA bzw. des ACSM für den
-          akklimatisierten Profibereich. SportHitzeCheck warnt absichtlich früher: Im
-          Amateursport fehlen medizinische Abteilungen an der Seitenlinie, und die
-          Teams sind in der Regel nicht an extreme Hitze akklimatisiert. Deshalb liegt
-          auf jeder Altersklasse ein Breitensport-Puffer.
-        </p>
-        <p>
-          Kinder (U13) −1,5 °C wegen geringerer Schweißeffizienz. Jugend (U14–U19)
-          −0,8 °C. Aktive −1,0 °C. Ü35 −1,2 °C. Die Offsets
-          senken die Schwellen, nicht den Wetter-WBGT selbst – das Ergebnis bleibt eine
-          Orientierungshilfe, keine individuelle Diagnose.
-        </p>
-
-        <ul className="flex flex-col gap-2.5 text-xs leading-relaxed">
-          {SOURCE_LINKS.map((source) => (
-            <li key={source.href}>
-              <a
-                href={source.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-slate-800 underline decoration-slate-300 underline-offset-2 transition hover:text-orange-600 hover:decoration-orange-400"
-              >
-                {source.title}
-              </a>
-              <span className="mt-0.5 block text-slate-500">{source.note}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </details>
   );
 }
 
@@ -892,10 +972,14 @@ function AmpelBox({
     colorCode: ColorCode;
     recommendationLabel: string;
     recommendationPoints: string[];
+    hauptempfehlung: string;
+    recommendationQuelleId: SourceId;
+    officialDecisionNote?: string;
   };
   peakHour: WBGTHour;
 }) {
   const airTemp = peakHour.breakdown.temperature;
+  const source = sourcesRegistry[summary.recommendationQuelleId];
 
   return (
     <section
@@ -920,11 +1004,26 @@ function AmpelBox({
         </p>
       </div>
       <p className="mt-3 text-base leading-snug font-bold">{summary.recommendationLabel}</p>
+      <p className="mt-1 text-sm leading-snug font-medium opacity-90">
+        {summary.hauptempfehlung}
+      </p>
       <ul className="mt-1.5 list-disc space-y-1 pl-4 text-sm leading-snug font-medium opacity-90">
         {summary.recommendationPoints.map((point) => (
           <li key={point}>{point}</li>
         ))}
       </ul>
+      <a
+        href={sourceHref(summary.recommendationQuelleId)}
+        className="mt-2 self-start text-[11px] font-medium opacity-75 underline decoration-current/40 underline-offset-2 hover:opacity-100"
+      >
+        Quelle: {source.name}
+        <sup className="ml-0.5">↗</sup>
+      </a>
+      {summary.officialDecisionNote ? (
+        <p className="mt-3 rounded-lg border border-current/30 bg-black/10 px-3 py-2 text-xs leading-snug font-medium italic opacity-90">
+          {summary.officialDecisionNote}
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -958,83 +1057,12 @@ function WbgtInfoTip() {
   );
 }
 
-const THRESHOLD_STEPS: { code: ColorCode; label: string }[] = [
-  { code: "green", label: "Grün" },
-  { code: "yellow", label: "Gelb" },
-  { code: "orange", label: "Orange" },
-  { code: "red", label: "Rot" },
-];
-
-function ThresholdsBox({
-  ageGroup,
-  eventType,
-  colorCode,
-  thresholds,
-}: {
-  ageGroup: AgeGroup;
-  eventType: EventType;
-  colorCode: ColorCode;
-  thresholds: { yellow: number; orange: number; red: number };
-}) {
-  const ranges: Record<ColorCode, string> = {
-    green: `< ${thresholds.yellow.toFixed(1)} °C`,
-    yellow: `${thresholds.yellow.toFixed(1)} – ${thresholds.orange.toFixed(1)} °C`,
-    orange: `${thresholds.orange.toFixed(1)} – ${thresholds.red.toFixed(1)} °C`,
-    red: `> ${thresholds.red.toFixed(1)} °C`,
-  };
-
-  return (
-    <Panel>
-      <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-        Grenzwerte
-      </h2>
-      <p className="mt-2 text-sm text-slate-700">
-        {labelFor(AGE_OPTIONS, ageGroup)}
-        <span className="text-slate-500"> · Offset {ageOffsetLabel(ageGroup)}</span>
-      </p>
-      <p className="mt-0.5 text-sm text-slate-600">
-        Empfehlung gilt für {labelFor(EVENT_OPTIONS, eventType)}
-      </p>
-
-      <ul className="mt-3 flex flex-col gap-1.5">
-        {THRESHOLD_STEPS.map((step) => {
-          const active = step.code === colorCode;
-          return (
-            <li
-              key={step.code}
-              className={`flex items-center justify-between gap-3 rounded-lg border px-2.5 py-1.5 text-sm ${
-                active
-                  ? "border-slate-400 bg-slate-50 ring-1 ring-slate-400"
-                  : "border-gray-200 bg-white"
-              }`}
-            >
-              <span className="flex items-center gap-2 font-semibold text-slate-700">
-                <span
-                  className={`size-2.5 shrink-0 rounded-full ${AMPEL_BG[step.code]}`}
-                  aria-hidden
-                />
-                {step.label}
-                {active && (
-                  <span className="text-[11px] font-medium text-slate-500">aktuell</span>
-                )}
-              </span>
-              <span className="font-semibold text-slate-800 tabular-nums">
-                {ranges[step.code]}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </Panel>
-  );
-}
-
 function PlaceBox({
   lat,
   lng,
   startTime,
   sessionLabel,
-  tags,
+  sport,
   surface,
   shadow,
   watered,
@@ -1044,12 +1072,15 @@ function PlaceBox({
   lng: number;
   startTime: string;
   sessionLabel: string;
-  tags: string[];
+  sport: Sport;
   surface: Surface;
   shadow: Shadow;
   watered: boolean;
   className?: string;
 }) {
+  const config = getSurfaceConfig(sport, surface);
+  const offsetLabel = surfaceOffsetLabel(sport, surface);
+
   return (
     <Panel className={className}>
       <h2 className="flex items-center gap-2 text-xs font-bold tracking-wider text-slate-500 uppercase">
@@ -1062,32 +1093,51 @@ function PlaceBox({
         {formatDay(startTime.slice(0, 10))}, {sessionLabel} Uhr
       </p>
       <div className="mt-2 flex flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600"
-            >
-              {tag}
-            </span>
-          ))}
-          {watered && (
-            <span className="flex items-center gap-1 rounded-md bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700">
-              <Droplets className="size-3" aria-hidden />
-              gewässert
-            </span>
-          )}
-        </div>
+        {watered && (
+          <span className="flex w-fit items-center gap-1 rounded-md bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700">
+            <Droplets className="size-3" aria-hidden />
+            gewässert
+          </span>
+        )}
         <div className="flex items-stretch gap-1.5">
           <span className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-slate-100 py-1 pr-2 pl-1 text-xs font-medium text-slate-600">
             <SurfaceThumb surface={surface} size="tag" />
-            <span className="min-w-0 truncate">{shortLabelFor(ALL_SURFACE_OPTIONS, surface)}</span>
+            <span className="min-w-0 truncate">
+              {shortLabelFor(surfacesForSport(sport), surface)}
+            </span>
+            {showsSurfaceSourceInfo(config.konfidenz) ? (
+              <SourceInfoButton sourceId={config.quelle_id} variant="anchor" />
+            ) : null}
+            {offsetLabel == null ? (
+              <ThermometerSun className="size-3.5 shrink-0 text-amber-600" aria-hidden />
+            ) : null}
           </span>
           <span className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-slate-100 py-1 pr-2 pl-1 text-xs font-medium text-slate-600">
             <ShadowThumb shadow={shadow} size="tag" />
             <span className="min-w-0 truncate">{shortLabelFor(SHADOW_OPTIONS, shadow)}</span>
           </span>
         </div>
+        {config.wbgtOffset == null || config.hazardWarning ? (
+          <p
+            role="note"
+            className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-950"
+          >
+            <ThermometerSun className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden />
+            <span>
+              {config.hazardWarning ??
+                "Kein belegter WBGT-Zahlenzuschlag für diesen Belag – nur qualitativer Hinweis."}
+            </span>
+          </p>
+        ) : null}
+        {config.hinweis ? (
+          <p
+            role="note"
+            className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-700"
+          >
+            <Trees className="mt-0.5 size-3.5 shrink-0 text-slate-500" aria-hidden />
+            <span>{config.hinweis}</span>
+          </p>
+        ) : null}
       </div>
     </Panel>
   );

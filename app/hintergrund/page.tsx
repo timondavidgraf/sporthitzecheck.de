@@ -66,9 +66,11 @@ export default function HintergrundPage() {
         </ul>
         <p>
           Deshalb kann der WBGT deutlich unter der Lufttemperatur liegen und trotzdem die
-          relevantere Zahl sein: Bei 32&nbsp;°C Luft und hoher Feuchte plus Sonne auf
-          Kunstrasen ist die Belastung höher, als die 32&nbsp;°C allein vermuten lassen.
-          FIFA, ACSM und NATA nutzen den WBGT deshalb als Maß für Hitze im Sport.
+          relevantere Zahl sein: Bei 32&nbsp;°C Luft und hoher Feuchte plus Sonne ist die
+          Belastung höher, als die 32&nbsp;°C allein vermuten lassen – unabhängig vom
+          Belag. Kunstrasen kann sich stark aufheizen (Kontakthitze), hebt den WBGT laut
+          Studienlage aber nicht pauschal an. FIFA, ACSM und NATA nutzen den WBGT
+          deshalb als Maß für Hitze im Sport.
         </p>
       </section>
 
