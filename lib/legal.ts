@@ -1,6 +1,15 @@
 /** Rechtlicher Hinweis – auf Formular und Ergebnisseite identisch. */
 export const LEGAL_DISCLAIMER =
-  "Diese App bietet eine Orientierungshilfe. Der WBGT nähert die Hitzebelastung besser an als die Lufttemperatur allein, weil er Feuchte, Sonnenstrahlung und Wind einbezieht. Ein Modell kann die Bedingungen auf dem Platz trotzdem nicht vollständig abbilden. Die finale Entscheidung obliegt der Spielleitung bzw. dem Trainerstab vor Ort.";
+  "Diese App liefert eine WBGT-Näherung aus Wetterdaten (Open-Meteo) und öffentlich zugänglichen Verbandsrichtlinien. WBGT bildet Feuchte, Strahlung und Wind mit ab und liegt näher an der Hitzebelastung als die Lufttemperatur allein. Das Modell ersetzt keine Vor-Ort-Messung, keine medizinische Beratung und keine Entscheidung von Spielleitung, Trainerstab oder Schiedsgericht. Bei gesundheitlichen Symptomen: sofort abbrechen und kühlen.";
+
+/**
+ * Kanonische Adresse der Seite – Basis für Canonical-Links, Open Graph,
+ * robots.txt und sitemap.xml. Über `NEXT_PUBLIC_SITE_URL` überschreibbar,
+ * damit Vorschau-Deployments nicht auf die Produktionsdomain zeigen.
+ */
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://sporthitzecheck.de"
+).replace(/\/$/, "");
 
 /** Einzige Kontaktadresse für Feedback, Fehler und Impressum. */
 export const CONTACT_EMAIL = "team@sporthitzecheck.de";

@@ -4,9 +4,8 @@
  */
 
 import type { Sport } from "./sportsConfig";
-import { SPORTS } from "./sportsConfig";
+import { intensityFamily, SPORTS } from "./sportsConfig";
 import type { SourceId } from "./sourcesRegistry";
-import { sourcesRegistry } from "./sourcesRegistry";
 import type { ColorCode, EventType } from "./wbgtCalculator";
 
 export interface StageRecommendation {
@@ -68,20 +67,20 @@ const FOOTBALL: Record<ColorCode, StageRecommendation> = {
   green: ACSM_GREEN,
   yellow: ACSM_YELLOW,
   orange: {
-    hauptempfehlung: "FIFA sieht ab hier freiwillige Cooling Breaks vor.",
+    hauptempfehlung: "Hohes Risiko laut FIFA-Einstufung (30–32 °C WBGT).",
     stichpunkte: [
-      "Freiwillige Trinkpause (FIFA: möglich zwischen 27-32°C WBGT)",
-      "Schatten/Kühlmöglichkeiten am Spielfeldrand bereitstellen",
+      "Cooling Break in jeder Halbzeit einplanen – FIFPRO empfiehlt das bereits ab 26 °C",
+      "Schatten und Kühlmöglichkeiten am Spielfeldrand bereitstellen",
       "Bei empfindlichen Gruppen (Kinder, ältere Personen) auf kühlere Tageszeit verlegen",
     ],
     quelle_id: "fifa_2026",
   },
   red: {
     hauptempfehlung:
-      "FIFA-Schwelle für verpflichtende Cooling Breaks erreicht (≥32°C WBGT).",
+      "Extremes Risiko: FIFA-Schwelle für verpflichtende Cooling Breaks erreicht (>32 °C WBGT).",
     stichpunkte: [
-      "Verpflichtende Cooling Break lt. FIFA: 2x 3 Minuten (Minute 30 und 75)",
-      "FIFPRO empfiehlt bereits ab 28°C Spielverlegung zu prüfen (siehe Alternativquelle)",
+      "Verpflichtende Cooling Breaks lt. FIFA: in beiden Halbzeiten, etwa Minute 30 und 75",
+      "FIFPRO empfiehlt Verlegung bereits ab 28 °C (siehe Alternativquelle)",
       "Bei Symptomen (Schwindel, Übelkeit) sofort kühlen, Rettungsdienst",
     ],
     quelle_id: "fifa_2026",
@@ -148,11 +147,11 @@ const ITF_RED: StageRecommendation = {
 };
 
 const BEACH_HINT =
-  "Hinweis: FIVB selbst nennt keinen Grenzwert - Profidaten deuten auf höhere Toleranz hin als hier angenommen";
+  "Hinweis: Die FIVB misst den WBGT verpflichtend, nennt aber bewusst keinen Grenzwert – die Daten dahinter stammen von akklimatisierten Profis, deshalb bleibt dieser Fallback konservativ";
 const HOCKEY_HINT =
-  "Hinweis: FIH misst offiziell Lufttemperatur (Grenze 35°C), nicht WBGT - dieser Wert ist eine Näherung";
+  "Hinweis: Die FIH misst Lufttemperatur und Luftfeuchte (Grenze 35 °C, tiefer ab 65 % Feuchte), nicht WBGT – dieser Wert ist eine Näherung";
 const ATHLETICS_HINT =
-  "Hinweis: World Athletics nennt Warnstufen (25/28/30 °C), keine operativen Cooling-Break-Regeln wie FIFA – Maßnahmen hier ACSM-Näherung";
+  "Hinweis: World Athletics nennt fünf Warnstufen (21/25/28/30 °C), aber keine operativen Cooling-Break-Regeln wie FIFA – die Maßnahmen hier sind ACSM-Näherung";
 
 function withHint(
   rec: StageRecommendation,
@@ -182,7 +181,9 @@ function tennisStage(color: ColorCode, wbgt: number): StageRecommendation {
   const suspensionAt = SPORTS.tennis.thresholds.suspensionAt ?? 32.2;
   if (wbgt >= suspensionAt) return ITF_RED;
   if (wbgt >= extraPauseAt || color === "red") return ITF_ORANGE;
-  if (color === "orange") return ACSM_YELLOW;
+  // Unterhalb der ITF-Schwellen gibt es keine Verbandsmaßnahme – hier greift die
+  // ACSM-Sprache, und zwar auf der Stufe, die zur Ampelfarbe passt.
+  if (color === "orange") return ACSM_ORANGE;
   if (color === "yellow") return ACSM_YELLOW;
   return ACSM_GREEN;
 }
@@ -216,19 +217,37 @@ export function isCompetitionEvent(eventType: EventType): boolean {
 
 export function recommendationHeadline(
   color: ColorCode,
-  eventType: EventType
+  eventType: EventType,
+  sport?: Sport
 ): string {
-  const match = isCompetitionEvent(eventType);
+  const competition = isCompetitionEvent(eventType);
+  const endurance = sport ? intensityFamily(sport) === "endurance" : false;
+  const activity = endurance
+    ? competition
+      ? "Wettkampf"
+      : "Training"
+    : competition
+      ? "Spiel"
+      : "Training";
+
   switch (color) {
     case "green":
-      return match ? "Spiel möglich" : "Training möglich";
+      return `${activity} möglich`;
     case "yellow":
-      return match ? "Spiel mit erhöhter Aufmerksamkeit" : "Training mit Anpassungen";
+      return competition
+        ? `${activity} mit erhöhter Aufmerksamkeit`
+        : "Training mit Anpassungen";
     case "orange":
-      return match ? "Spiel mit Cooling Breaks" : "Training deutlich anpassen";
+      return competition
+        ? endurance
+          ? "Wettkampf mit Cooling Breaks"
+          : "Spiel mit Cooling Breaks"
+        : "Training deutlich anpassen";
     case "red":
-      return match
-        ? "Spielunterbrechung/-verlegung möglich"
+      return competition
+        ? endurance
+          ? "Wettkampfabsage/-verlegung möglich"
+          : "Spielunterbrechung/-verlegung möglich"
         : "Training absagen empfohlen";
   }
 }
@@ -247,7 +266,7 @@ export function getDisplayRecommendation(
   const headlineColor =
     sport === "tennis" ? tennisHeadlineColor(colorCode, wbgtValue) : colorCode;
   return {
-    headline: recommendationHeadline(headlineColor, eventType),
+    headline: recommendationHeadline(headlineColor, eventType, sport),
     hauptempfehlung: stage.hauptempfehlung,
     stichpunkte: stage.stichpunkte,
     quelle_id: stage.quelle_id,
@@ -262,8 +281,4 @@ function tennisHeadlineColor(color: ColorCode, wbgt: number): ColorCode {
   if (wbgt >= suspensionAt) return "red";
   if (wbgt >= extraPauseAt) return "orange";
   return color === "red" ? "orange" : color;
-}
-
-export function sourceName(id: SourceId): string {
-  return sourcesRegistry[id].name;
 }

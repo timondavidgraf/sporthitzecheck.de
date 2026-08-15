@@ -9,7 +9,7 @@ const HINT_MS = 4000;
 const cardClass =
   "flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition hover:border-orange-200";
 
-export function FeedbackSupport({ pageLabel: _pageLabel }: { pageLabel?: string }) {
+export function FeedbackSupport() {
   const [copied, setCopied] = useState(false);
   const hideTimer = useRef<number>(0);
 

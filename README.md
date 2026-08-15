@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SportHitzeCheck
 
-## Getting Started
+Hitzerisiko für Sporteinheiten planbar machen: Die App berechnet aus Wetterdaten
+den WBGT (Wet Bulb Globe Temperature) für einen konkreten Ort und Zeitraum,
+vergleicht ihn mit den Hitzerichtlinien der Sportverbände und gibt eine
+Ampel plus Handlungsempfehlung aus.
 
-First, run the development server:
+Kein Account, keine Cookies, keine Tracker-Profile.
+
+## Stack
+
+- Next.js 16 (App Router) und React 19
+- TypeScript, Tailwind CSS 4
+- Wetterdaten: [Open-Meteo](https://open-meteo.com) (kein API-Key nötig)
+- Ortssuche: Google Places/Geocoding über einen serverseitigen Proxy
+- Deployment: Vercel, Fehler-Monitoring optional über Sentry
+
+## Lokal starten
 
 ```bash
+npm install
+cp .env.example .env.local   # Windows: copy .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Danach [http://localhost:3000](http://localhost:3000) öffnen. Ohne
+`GOOGLE_MAPS_API_KEY` funktioniert alles außer der Ortssuche per Texteingabe –
+die Standortbestimmung per Browser läuft weiter.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Alle Umgebungsvariablen und ihre Bedeutung stehen in `.env.example`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Skripte
 
-## Learn More
+| Befehl | Zweck |
+| --- | --- |
+| `npm run dev` | Entwicklungsserver |
+| `npm run build` | Produktionsbuild |
+| `npm run start` | Produktionsserver lokal |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript ohne Emit |
 
-To learn more about Next.js, take a look at the following resources:
+## Aufbau
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+app/                 Routen (Formular, Radar-Dashboard, Rechtstexte)
+  api/geocode/       Proxy zur Google-Suche, hält den API-Key serverseitig
+lib/
+  wbgtCalculator.ts  WBGT-Berechnung und Prognoseaufbereitung
+  sportsConfig.ts    Sportarten, Untergründe, Ampelschwellen
+  sourcesRegistry.ts Quellen mit Konfidenz und Einschränkung
+  recommendations.ts Handlungsempfehlungen je Ampelfarbe
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Wissenschaftliche Grundlage
 
-## Deploy on Vercel
+Der WBGT wird nicht gemessen, sondern aus Temperatur, Luftfeuchte, Wind und
+Strahlung geschätzt: psychrometrische Feuchtkugel nach Stull (2011), Aufschlag
+zur natürlichen Feuchtkugel nach Hunter & Minyard (1999), Windumrechnung von
+10 m auf 2 m nach FAO-56.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Jede Zahl in der App ist mit Quelle, Konfidenzstufe und Einschränkung
+hinterlegt – nachzulesen unter `/hintergrund` und in `lib/sourcesRegistry.ts`.
+Wo keine belastbare Studie existiert, zeigt die App bewusst einen
+Warnhinweis statt eines erfundenen Zahlenwerts.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Die App ersetzt keine Messung vor Ort und keine medizinische Einschätzung.

@@ -56,8 +56,10 @@ export interface WBGTBreakdown {
   temperature: number;
   /** Open-Meteo: relative Feuchte in % */
   humidity: number;
-  /** Open-Meteo: Wind in m/s */
+  /** Open-Meteo: Wind in m/s, gemessen auf 10 m */
   wind: number;
+  /** Wind auf 2 m Höhe (FAO-56) – die Höhe, für die WBGT-Modelle kalibriert sind */
+  wind2m: number;
   /** Open-Meteo: Direktstrahlung in W/m² */
   directRadiation: number;
   /** Open-Meteo: diffuse Himmelsstrahlung in W/m² */
@@ -72,8 +74,16 @@ export interface WBGTBreakdown {
   /** Diffuse Strahlung nach Beschattung */
   effectiveDiffuse: number;
 
-  /** Feuchtkugel Tw nach Stull */
+  /** Psychrometrische Feuchtkugel Tw nach Stull (beschattet, belüftet) */
   wetBulb: number;
+  /** Globalstrahlung (direkt + diffus) ohne Beschattung */
+  globalUnshaded: number;
+  /** Globalstrahlung nach Beschattung */
+  globalShaded: number;
+  /** Natürliche Feuchtkugel Tnw ohne Beschattung – der 70-%-Anteil der Formel */
+  naturalWetBulbUnshaded: number;
+  /** Natürliche Feuchtkugel Tnw nach Beschattung */
+  naturalWetBulbShaded: number;
   /** 0.8·Gdir + 0.4·Gdif ohne Beschattung */
   solarUnshaded: number;
   /** dieselbe Solarlast mit beschatteter Strahlung */
@@ -170,13 +180,53 @@ export const SHADOW_DIFFUSE_FACTORS: Record<Shadow, number> = {
   full: 0.25,
 };
 
-/** Kuehlung durch frische Bewaesserung – wirkt nur in der aktuellen Stunde (claude.md §3.3) */
-export const WATERING_COOLING = 2.5;
+/**
+ * Kuehlung durch frische Bewaesserung – bewusst klein gehalten.
+ *
+ * Fuer den WBGT-Effekt einer bewaesserten Sportflaeche existiert keine Studie.
+ * Die einzige quantifizierte Evidenz stammt aus flaechiger Feldbewaesserung
+ * (Commun Earth Environ 2024): −0,3 bis −1,3 K am Tag, aber +0,4 bis +1,3 K
+ * nachts, weil die zusaetzliche Feuchte die Feuchtkugel anhebt. Ein einzelner
+ * gewaesserter Platz liegt weit darunter.
+ *
+ * Deshalb: hoechstens 0,5 K, nur tagsueber und nur bei trockener Luft. Ein
+ * groesserer Bonus wuerde die Ampel entschaerfen, ohne dass es dafuer eine
+ * Grundlage gibt – der gefaehrlichste Fehler, den diese App machen koennte.
+ */
+export const WATERING_COOLING = 0.5;
 
-/** Gewichte der WBGT-Formel im Freien: 0.7·Tw + 0.2·Tg + 0.1·Ta */
+/** Ab dieser Feuchte hebt die Verdunstung die Feuchtkugel mehr an als sie kuehlt. */
+export const WATERING_MAX_HUMIDITY = 70;
+
+/** Gewichte der WBGT-Formel im Freien nach ISO 7243: 0.7·Tnw + 0.2·Tg + 0.1·Ta */
 export const WBGT_WET_BULB_WEIGHT = 0.7;
 export const WBGT_GLOBE_WEIGHT = 0.2;
 export const WBGT_AIR_WEIGHT = 0.1;
+
+/**
+ * Open-Meteo liefert Wind auf 10 m, WBGT-Modelle rechnen mit 2 m.
+ * Umrechnung nach FAO-56 (Allen et al. 1998): u2 = uz · 4.87 / ln(67.8·z − 5.42).
+ *
+ * Ohne diesen Schritt wird die Konvektionskühlung überschätzt und der WBGT
+ * systematisch zu niedrig geschätzt (Clark & Konrad 2020: kalte Verzerrung von
+ * 4–6 °F in den NWS-WBGT-Vorhersagen, u. a. aus genau diesem Grund).
+ */
+export const WIND_10M_TO_2M = 4.87 / Math.log(67.8 * 10 - 5.42);
+
+/**
+ * Aufschlag von der psychrometrischen auf die natürliche Feuchtkugel nach
+ * Hunter & Minyard (1999), wie vom US National Weather Service für die
+ * operationelle WBGT-Vorhersage genutzt:
+ *   Tnw = Tw + 0.00117·S − 0.233·u2 + 1.072
+ *
+ * Notwendig, weil die WBGT-Formel die *natürliche* Feuchtkugel verlangt: ein
+ * unbeschirmter, nur natürlich belüfteter Docht. Die psychrometrische
+ * Feuchtkugel (Stull) steht im Schatten und wird belüftet – sie direkt
+ * einzusetzen unterschätzt den WBGT bei Sonne und wenig Wind deutlich.
+ */
+export const NWB_SOLAR_COEF = 0.00117;
+export const NWB_WIND_COEF = 0.233;
+export const NWB_CONST = 1.072;
 
 /** Solarlast auf die Schwarzkugel: Direktstrahlung zaehlt staerker als diffus */
 export const SOLAR_DIRECT_WEIGHT = 0.8;
@@ -427,10 +477,12 @@ export function findExactHourIndex(
 // ---------------------------------------------------------------------------
 
 /**
- * Feuchtkugeltemperatur nach Stull (2011) – Naeherung fuer Normaldruck.
+ * Psychrometrische Feuchtkugeltemperatur nach Stull (2011) – empirischer Fit
+ * fuer Normaldruck, gueltig fuer 5–99 % rF und −20 bis +50 °C
+ * (mittlerer absoluter Fehler < 0,3 K).
  */
 function wetBulbTemperature(tempC: number, relHumidity: number): number {
-  const rh = Math.min(100, Math.max(1, relHumidity));
+  const rh = Math.min(99, Math.max(5, relHumidity));
 
   return (
     tempC * Math.atan(0.151977 * Math.sqrt(rh + 8.313659)) +
@@ -439,6 +491,32 @@ function wetBulbTemperature(tempC: number, relHumidity: number): number {
     0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) -
     4.686035
   );
+}
+
+/** Wind von 10 m auf 2 m Hoehe (FAO-56). */
+export function windAt2m(wind10m: number): number {
+  return Math.max(0, wind10m) * WIND_10M_TO_2M;
+}
+
+/**
+ * Natuerliche Feuchtkugel Tnw aus der psychrometrischen Feuchtkugel,
+ * der Globalstrahlung und dem 2-m-Wind (Hunter & Minyard 1999).
+ *
+ * Der Wert wird nie unter Tw gedrueckt: bei viel Wind naehern sich beide an,
+ * eine Unterschreitung waere physikalisch nicht plausibel.
+ */
+function naturalWetBulbTemperature(
+  wetBulb: number,
+  globalRadiation: number,
+  wind2m: number
+): number {
+  const adjusted =
+    wetBulb +
+    NWB_SOLAR_COEF * Math.max(0, globalRadiation) -
+    NWB_WIND_COEF * Math.max(0, wind2m) +
+    NWB_CONST;
+
+  return Math.max(wetBulb, adjusted);
 }
 
 function solarLoad(directRadiation: number, diffuseRadiation: number): number {
@@ -466,7 +544,9 @@ function globeFromSolar(
 
 /**
  * Approximierter Basis-WBGT im Freien:
- *   WBGT = 0.7 * Tw + 0.2 * Tg + 0.1 * Ta
+ *   WBGT = 0.7 * Tnw + 0.2 * Tg + 0.1 * Ta
+ *
+ * `windMs` ist der Wind auf 10 m, wie Open-Meteo ihn liefert.
  */
 export function approximateWBGT(
   tempC: number,
@@ -475,11 +555,14 @@ export function approximateWBGT(
   directRadiation: number,
   diffuseRadiation: number
 ): number {
+  const wind2m = windAt2m(windMs);
   const tw = wetBulbTemperature(tempC, relHumidity);
+  const global = Math.max(0, directRadiation ?? 0) + Math.max(0, diffuseRadiation ?? 0);
+  const tnw = naturalWetBulbTemperature(tw, global, wind2m);
   const solar = solarLoad(directRadiation, diffuseRadiation);
-  const { globe } = globeFromSolar(tempC, solar, windMs);
+  const { globe } = globeFromSolar(tempC, solar, wind2m);
 
-  return WBGT_WET_BULB_WEIGHT * tw + WBGT_GLOBE_WEIGHT * globe + WBGT_AIR_WEIGHT * tempC;
+  return WBGT_WET_BULB_WEIGHT * tnw + WBGT_GLOBE_WEIGHT * globe + WBGT_AIR_WEIGHT * tempC;
 }
 
 export function getAmpelThresholds(
@@ -629,24 +712,39 @@ export function calculateWBGTForecast(
 
     const effectiveDirect = direct * shadowFactor;
     const effectiveDiffuse = diffuse * diffuseFactor;
+    const wind2m = windAt2m(wind);
 
     const wetBulb = wetBulbTemperature(temp, humidity);
+    const globalUnshaded = Math.max(0, direct ?? 0) + Math.max(0, diffuse ?? 0);
+    const globalShaded = Math.max(0, effectiveDirect) + Math.max(0, effectiveDiffuse);
+    const naturalWetBulbUnshaded = naturalWetBulbTemperature(
+      wetBulb,
+      globalUnshaded,
+      wind2m
+    );
+    const naturalWetBulbShaded = naturalWetBulbTemperature(wetBulb, globalShaded, wind2m);
     const solarUnshaded = solarLoad(direct, diffuse);
     const solarShaded = solarLoad(effectiveDirect, effectiveDiffuse);
-    const unshadedGlobe = globeFromSolar(temp, solarUnshaded, wind);
-    const shadedGlobe = globeFromSolar(temp, solarShaded, wind);
+    const unshadedGlobe = globeFromSolar(temp, solarUnshaded, wind2m);
+    const shadedGlobe = globeFromSolar(temp, solarShaded, wind2m);
 
     const unshaded =
-      WBGT_WET_BULB_WEIGHT * wetBulb +
+      WBGT_WET_BULB_WEIGHT * naturalWetBulbUnshaded +
       WBGT_GLOBE_WEIGHT * unshadedGlobe.globe +
       WBGT_AIR_WEIGHT * temp;
     const shaded =
-      WBGT_WET_BULB_WEIGHT * wetBulb +
+      WBGT_WET_BULB_WEIGHT * naturalWetBulbShaded +
       WBGT_GLOBE_WEIGHT * shadedGlobe.globe +
       WBGT_AIR_WEIGHT * temp;
 
-    // Bewaesserung kuehlt ausschliesslich die erste Stunde der Einheit
-    const wateringOffset = watered && i === sessionFrom ? -WATERING_COOLING : 0;
+    // Bewaesserung kuehlt ausschliesslich die erste Stunde der Einheit – und nur,
+    // solange Sonne da ist und die Luft die Verdunstung noch aufnehmen kann.
+    const wateringEffective =
+      watered &&
+      i === sessionFrom &&
+      globalUnshaded > 0 &&
+      humidity < WATERING_MAX_HUMIDITY;
+    const wateringOffset = wateringEffective ? -WATERING_COOLING : 0;
 
     // Basis auf eine Nachkommastelle runden, bevor die Offsets addiert werden –
     // so ergibt die Aufschluesselung im Dashboard exakt den finalen Wert.
@@ -673,6 +771,7 @@ export function calculateWBGTForecast(
         temperature: temp,
         humidity,
         wind,
+        wind2m,
         directRadiation: direct,
         diffuseRadiation: diffuse,
         shadowFactor,
@@ -680,6 +779,10 @@ export function calculateWBGTForecast(
         effectiveDirect,
         effectiveDiffuse,
         wetBulb,
+        globalUnshaded,
+        globalShaded,
+        naturalWetBulbUnshaded,
+        naturalWetBulbShaded,
         solarUnshaded,
         solarShaded,
         globeDeltaUnshaded: unshadedGlobe.delta,
@@ -725,7 +828,7 @@ function round1(value: number): number {
 
 /**
  * Gesamtbewertung des Zeitraums: die Ampel richtet sich nach dem hoechsten
- * WBGT-Wert der Prognose (claude.md §4).
+ * WBGT-Wert der Prognose.
  */
 export function getForecastSummary(forecast: WBGTHour[]): {
   maxWbgt: number;

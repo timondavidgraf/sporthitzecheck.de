@@ -33,6 +33,11 @@ export function sentryPrivacyOptions() {
         delete event.request.headers;
         delete event.request.env;
         delete event.request.data;
+        delete event.request.query_string;
+        // Die Radar-URL trägt Koordinaten im Query-String – nur den Pfad behalten
+        if (typeof event.request.url === "string") {
+          event.request.url = event.request.url.split("?")[0];
+        }
       }
       return event;
     },

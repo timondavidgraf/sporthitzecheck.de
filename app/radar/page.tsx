@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import {
   Bar,
   BarChart,
@@ -30,17 +31,15 @@ import {
 import {
   AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
-  DEFAULT_EVENT,
-  DEFAULT_INTENSITY,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
-  EVENT_OPTIONS,
-  INTENSITY_OPTIONS,
   ageOffsetLabel,
+  eventTypeFromIntensity,
   intensityOffsetLabel,
   labelFor,
   parseAgeGroup,
+  parseIntensity,
   parseOption,
   SHADOW_OPTIONS,
   shortLabelFor,
@@ -88,18 +87,23 @@ import {
   GLOBE_DELTA_MAX,
   GLOBE_SOLAR_COEF,
   localHourStamp,
+  NWB_CONST,
+  NWB_SOLAR_COEF,
+  NWB_WIND_COEF,
+  WIND_10M_TO_2M,
   sessionHourStamps,
   shiftStampByDays,
   SOLAR_DIFFUSE_WEIGHT,
   SOLAR_DIRECT_WEIGHT,
   summarizeSession,
   WATERING_COOLING,
+  WATERING_MAX_HUMIDITY,
   WBGT_AIR_WEIGHT,
   WBGT_GLOBE_WEIGHT,
   WBGT_WET_BULB_WEIGHT,
   type AgeGroup,
   type ColorCode,
-  type EventType,
+  type WBGTBreakdown,
   type Shadow,
   type Surface,
   type WBGTHour,
@@ -226,12 +230,11 @@ function RadarContent() {
 
   const sport = parseOption(searchParams.get("sport"), SPORT_OPTIONS, DEFAULT_SPORT);
   const ageGroup = parseAgeGroup(searchParams.get("age"));
-  const eventType = parseOption(searchParams.get("event"), EVENT_OPTIONS, DEFAULT_EVENT);
-  const intensity = parseOption(
+  const intensity = parseIntensity(
     searchParams.get("intensity"),
-    INTENSITY_OPTIONS,
-    DEFAULT_INTENSITY
+    searchParams.get("event")
   );
+  const eventType = eventTypeFromIntensity(sport, intensity);
   const surface = surfaceForSport(
     sport,
     parseOption(searchParams.get("surface"), ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
@@ -308,9 +311,12 @@ function RadarContent() {
 
         if (!cancelled) setState({ status: "ready", forecast, hoursAhead, comparison });
       } catch (err) {
-        console.error("WBGT-Berechnung fehlgeschlagen:", err);
+        const offline = typeof navigator !== "undefined" && !navigator.onLine;
+        // Offline ist ein Nutzungszustand, kein Bug – den nicht als Fehler melden.
+        if (!offline) {
+          Sentry.captureException(err, { tags: { feature: "wbgt-forecast" } });
+        }
         if (!cancelled) {
-          const offline = typeof navigator !== "undefined" && !navigator.onLine;
           setState({
             status: "error",
             message: offline
@@ -372,7 +378,6 @@ function RadarContent() {
         <ThresholdsBox
           sport={sport}
           ageGroup={ageGroup}
-          eventType={eventType}
           intensity={intensity}
           colorCode={summary.colorCode}
           maxWbgt={summary.maxWbgt}
@@ -474,7 +479,6 @@ function RadarContent() {
           <ScienceSources
             sport={sport}
             surface={surface}
-            ageGroup={ageGroup}
             colorCode={summary.colorCode}
             recommendationQuelleId={summary.recommendationQuelleId}
           />
@@ -489,7 +493,7 @@ function RadarContent() {
       </div>
       <div className="mt-4 flex flex-col gap-4">
         <DisclaimerBox />
-        <FeedbackSupport pageLabel="Ergebnisseite" />
+        <FeedbackSupport />
       </div>
     </PageShell>
   );
@@ -575,6 +579,24 @@ function watt(value: number): string {
   return `${Math.round(value)} W/m²`;
 }
 
+/**
+ * Der Bewässerungsabzug entfällt nachts und bei schwüler Luft. Ohne Begründung
+ * wirkt die 0,0 in der Aufschlüsselung wie ein Fehler.
+ */
+function wateringBreakdownLabel(b: WBGTBreakdown): string {
+  if (!b.watered) return "Abzug Bewässerung (nicht gewählt)";
+  if (b.wateringOffset !== 0) {
+    return `Abzug Bewässerung (−${WATERING_COOLING.toFixed(1)} °C, 1. Stunde)`;
+  }
+  if (b.globalUnshaded <= 0) {
+    return "Abzug Bewässerung (entfällt ohne Sonne)";
+  }
+  if (b.humidity >= WATERING_MAX_HUMIDITY) {
+    return `Abzug Bewässerung (entfällt über ${WATERING_MAX_HUMIDITY} % Luftfeuchte)`;
+  }
+  return "Abzug Bewässerung (nur in der 1. Stunde)";
+}
+
 function Breakdown({
   hour,
   sport,
@@ -598,7 +620,7 @@ function Breakdown({
   const surfaceCfg = getSurfaceConfig(sport, surface);
   const surfaceLabel = surfaceCfg.name;
   const ageLabel = labelFor(AGE_OPTIONS, ageGroup);
-  const intensityName = intensityHeadline(intensity);
+  const intensityName = intensityHeadline(intensity, sport);
   const ageOff = ageThresholdOffset(sport, ageGroup);
   const intensityOff = intensityThresholdOffset(intensity);
   const offsetSum = ageOff + intensityOff;
@@ -610,9 +632,10 @@ function Breakdown({
   );
 
   const formula =
-    `${WBGT_WET_BULB_WEIGHT}×Tw + ${WBGT_GLOBE_WEIGHT}×Tg + ${WBGT_AIR_WEIGHT}×Ta`;
+    `${WBGT_WET_BULB_WEIGHT}×Tnw + ${WBGT_GLOBE_WEIGHT}×Tg + ${WBGT_AIR_WEIGHT}×Ta`;
   const solarFormula = `${SOLAR_DIRECT_WEIGHT}×Gdir + ${SOLAR_DIFFUSE_WEIGHT}×Gdif`;
-  const globeFormula = `${GLOBE_SOLAR_COEF}×Solar / (1+Wind), max. ${GLOBE_DELTA_MAX} K`;
+  const globeFormula = `${GLOBE_SOLAR_COEF}×Solar / (1+Wind 2 m), max. ${GLOBE_DELTA_MAX} K`;
+  const nwbFormula = `Tw + ${NWB_SOLAR_COEF}×Global − ${NWB_WIND_COEF}×Wind 2 m + ${NWB_CONST}`;
 
   return (
     <details className="group rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -633,6 +656,10 @@ function Breakdown({
           <BreakdownRow label="Lufttemperatur Ta" value={`${b.temperature.toFixed(1)} °C`} />
           <BreakdownRow label="Relative Feuchte" value={`${Math.round(b.humidity)} %`} />
           <BreakdownRow label="Wind (10 m)" value={`${b.wind.toFixed(1)} m/s`} />
+          <BreakdownRow
+            label="Globalstrahlung (Gdir + Gdif)"
+            value={watt(b.globalUnshaded)}
+          />
           <BreakdownRow label="Direktstrahlung Gdir" value={watt(b.directRadiation)} />
           <BreakdownRow label="Diffuse Strahlung Gdif" value={watt(b.diffuseRadiation)} />
         </BreakdownSection>
@@ -649,9 +676,22 @@ function Breakdown({
 
         <BreakdownSection
           title="3. Feuchtkugel, Schwarzkugel, Basis-WBGT"
-          hint={`Tw nach Stull (2011) aus Ta und Feuchte. Solarlast ${solarFormula}. Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
+          hint={`Wind 10 m → 2 m nach FAO-56 (×${WIND_10M_TO_2M.toFixed(2)}). Tw nach Stull (2011) aus Ta und Feuchte, dann Tnw nach Hunter & Minyard (1999): ${nwbFormula}. Solarlast ${solarFormula}. Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
         >
-          <BreakdownRow label="Feuchtkugel Tw" value={`${b.wetBulb.toFixed(1)} °C`} />
+          <BreakdownRow label="Wind auf 2 m" value={`${b.wind2m.toFixed(1)} m/s`} />
+          <BreakdownRow
+            label="Psychrometrische Feuchtkugel Tw"
+            value={`${b.wetBulb.toFixed(1)} °C`}
+          />
+          <BreakdownRow
+            label="Natürliche Feuchtkugel Tnw ohne Schatten"
+            value={`${b.naturalWetBulbUnshaded.toFixed(1)} °C`}
+            info={<SourceInfoButton sourceId="wbgt_model" variant="anchor" />}
+          />
+          <BreakdownRow
+            label="Natürliche Feuchtkugel Tnw mit Schatten"
+            value={`${b.naturalWetBulbShaded.toFixed(1)} °C`}
+          />
           <BreakdownRow label="Solarlast ohne Schatten" value={watt(b.solarUnshaded)} />
           <BreakdownRow label="Solarlast mit Schatten" value={watt(b.solarShaded)} />
           <BreakdownRow
@@ -682,7 +722,7 @@ function Breakdown({
 
         <BreakdownSection
           title="4. Platzkorrekturen"
-          hint={`Bewässerung: −${WATERING_COOLING.toFixed(1)} °C, nur in der ersten Stunde der Einheit.`}
+          hint={`Bewässerung: höchstens −${WATERING_COOLING.toFixed(1)} °C, nur in der ersten Stunde und nur bei Sonne unter ${WATERING_MAX_HUMIDITY} % Luftfeuchte. Bei schwüler Luft hebt die Verdunstung die Feuchtkugel an, statt zu kühlen.`}
         >
           {b.surfaceOffsetApplied ? (
             <>
@@ -710,29 +750,9 @@ function Breakdown({
             />
           )}
           <BreakdownRow
-            label={
-              b.watered
-                ? `Abzug Bewässerung (−${WATERING_COOLING.toFixed(1)} °C, 1. Stunde)`
-                : "Abzug Bewässerung (nicht gewählt)"
-            }
+            label={wateringBreakdownLabel(b)}
             value={signed(b.wateringOffset)}
           />
-          {surfaceCfg.hazardWarning ? (
-            <p
-              role="note"
-              className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11px] leading-relaxed text-amber-950"
-            >
-              {surfaceCfg.hazardWarning}
-            </p>
-          ) : null}
-          {surfaceCfg.hinweis ? (
-            <p
-              role="note"
-              className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-relaxed text-slate-700"
-            >
-              {surfaceCfg.hinweis}
-            </p>
-          ) : null}
         </BreakdownSection>
 
         <dl className="flex flex-col gap-1.5 text-sm">

@@ -64,7 +64,18 @@ export type SurfaceConfidence =
 
 export interface UntergrundConfig {
   name: string;
-  /** null = kein Zahlen-Offset, nur qualitativer Warnhinweis. */
+  /**
+   * Zuschlag in °C auf den aus Wetterdaten berechneten WBGT. `null` = kein
+   * Zahlen-Offset, nur qualitativer Warnhinweis.
+   *
+   * Grundlage ist Pryor et al. (2017), wo vor Ort gemessene Werte um 1,0–1,7 °C
+   * über den aus Wetterstationsdaten modellierten lagen. Wichtig für die
+   * Einordnung: Diese Studie fand KEINE signifikanten Unterschiede zwischen den
+   * Sportbelägen selbst – belegt ist „Platz wärmer als Wetterstation“, nicht
+   * „Belag X wärmer als Belag Y“. Die Offsets sind daher als Vor-Ort-Zuschlag
+   * für stark aufheizende, versiegelte Beläge zu lesen, nicht als validierte
+   * Rangfolge. Bewusst vorsichtig nach oben gesetzt.
+   */
   wbgtOffset: number | null;
   offsetRange?: [number, number];
   konfidenz: SurfaceConfidence;
@@ -90,14 +101,43 @@ export interface SportDefinition {
 
 /**
  * Offset von der Profi-Verbandsschwelle. Nur wenn `profi` gesetzt ist.
- * Größe angelehnt an die Differenz Elite vs. ACSM-Massenveranstaltung (~3–4 °C),
- * nicht direkt für einzelne Altersgruppen validiert.
+ *
+ * Bewusst eine Vorsichtsentscheidung, keine physiologische Aussage: Die
+ * Annahme, Kinder seien hitzeempfindlicher als Erwachsene, gilt als überholt
+ * (Rowland 2008; Falk & Dotan 2008; Lawrenz 2019). Der ACSM Position Stand
+ * formuliert es selbst so, dass die Datenlage diesen Glauben nicht stützt, es
+ * aber „prudent“ sei, Kinder als Risikogruppe zu behandeln. Genau dieser Linie
+ * folgt die App. Kein Verband quantifiziert einen Alters-Offset in °C – die
+ * Werte sind gesetzt, nicht abgeleitet, und entsprechend als Näherung
+ * gekennzeichnet.
+ *
+ * Der eigentlich belegte Unterschied ist Akklimatisierung, nicht Alter: Profis
+ * im Turnierbetrieb sind hitzeangepasst, ein Kreisliga-Kader im ersten warmen
+ * Mai-Training nicht.
  */
 export const AGE_THRESHOLD_OFFSETS: Record<AgeGroup, number> = {
   recreational: -3.0,
   youth: -4.0,
   elite: 0,
 };
+
+/**
+ * Ampelgrenzen für Sportarten ohne eigenen Verbandswert.
+ *
+ * Abgeleitet aus Tabelle 2 des ACSM Position Stand (2007), die acht Stufen
+ * kennt: bis 18,3 °C unbedenklich, ab 18,4 °C steigt das Risiko für
+ * Vorbelastete, ab 22,3 °C für alle, ab 25,7 °C deutlich für Unfitte und
+ * Nichtakklimatisierte, ab 27,9 °C liegt die Abbruchempfehlung für
+ * Ausdauerwettkämpfe.
+ */
+export const ACSM_FALLBACK_BOUNDS: AmpelBounds = {
+  gruen_max: 18.3,
+  gelb_max: 22.2,
+  orange_max: 27.8,
+};
+
+export const ACSM_FALLBACK_NOTE =
+  "Der ACSM Position Stand (2007) staffelt in acht Stufen (Grenzen 18,3 / 22,2 / 25,6 / 27,8 / 30,0 / 32,2 °C). Unsere vierstufige Ampel fasst sie zusammen: Grün bis 18,3 °C, Gelb bis 22,2 °C (Risiko für Vorbelastete steigt), Orange bis 27,8 °C (Risiko für alle, ab 25,7 °C deutlich für Nichtakklimatisierte), Rot ab 27,9 °C – genau dort setzt die ACSM-Abbruchempfehlung für Ausdauerwettkämpfe an.";
 
 export type IntensityLevel = "easy" | "normal" | "intense";
 
@@ -109,10 +149,23 @@ export interface IntensityModifier {
   quelle_id: "acgih_tlv";
 }
 
+type IntensityFamily = "match" | "endurance";
+
+const MATCH_SPORTS: ReadonlySet<Sport> = new Set([
+  "football",
+  "tennis",
+  "beachvolleyball",
+  "fieldhockey",
+]);
+
+export function intensityFamily(sport: Sport): IntensityFamily {
+  return MATCH_SPORTS.has(sport) ? "match" : "endurance";
+}
+
 /**
  * Sportartübergreifend, ACGIH-Analogie. Sicherheits-Näherung, nicht für Sport
  * validiert – gilt genauso wie der Alters-Offset, die Kombination erhöht die
- * Sicherheit nicht.
+ * Sicherheit nicht. Labels sind sportartspezifisch (siehe INTENSITY_LABELS).
  */
 export const INTENSITY_LEVELS: readonly IntensityModifier[] = [
   {
@@ -138,8 +191,63 @@ export const INTENSITY_LEVELS: readonly IntensityModifier[] = [
   },
 ];
 
+const INTENSITY_LABELS: Record<
+  IntensityFamily,
+  Record<IntensityLevel, { label: string; short: string }>
+> = {
+  match: {
+    easy: { label: "Training (viele Pausen)", short: "Training" },
+    normal: { label: "Spiel (regelmäßige Pausen)", short: "Spiel" },
+    intense: { label: "Turnier / intensives Spiel (wenig Pausen)", short: "Turnier" },
+  },
+  endurance: {
+    easy: { label: "Lockeres Auslaufen/Technik (viele Pausen)", short: "Locker" },
+    normal: { label: "Normales Training (regelmäßige Pausen)", short: "Normal" },
+    intense: { label: "Wettkampf (wenig Pausen)", short: "Wettkampf" },
+  },
+};
+
 export const DEFAULT_INTENSITY: IntensityLevel = "normal";
-export const INTENSITY_SOURCE_ID = "acgih_tlv" as const;
+
+export function intensityModifier(
+  level: IntensityLevel,
+  sport?: Sport
+): IntensityModifier {
+  const base = INTENSITY_LEVELS.find((item) => item.id === level) ?? INTENSITY_LEVELS[1];
+  if (!sport) return base;
+  return { ...base, ...INTENSITY_LABELS[intensityFamily(sport)][level] };
+}
+
+export function intensityThresholdOffset(level: IntensityLevel): number {
+  return intensityModifier(level).schwellenOffset;
+}
+
+/** Label ohne Klammerzusatz, z. B. „Spiel“ / „Normales Training“. */
+export function intensityHeadline(level: IntensityLevel, sport?: Sport): string {
+  return intensityModifier(level, sport).label.replace(/\s*\(.*\)$/, "");
+}
+
+/** Handlungsempfehlung und Dauer: aus der Intensität abgeleitet. */
+export function eventTypeFromIntensity(
+  sport: Sport,
+  level: IntensityLevel
+): "training" | "match" | "tournament" {
+  if (intensityFamily(sport) === "match") {
+    if (level === "easy") return "training";
+    if (level === "normal") return "match";
+    return "tournament";
+  }
+  return level === "intense" ? "match" : "training";
+}
+
+export function durationForIntensity(sport: Sport, level: IntensityLevel): number {
+  if (intensityFamily(sport) === "match") {
+    if (level === "easy") return 90;
+    if (level === "normal") return 120;
+    return 180;
+  }
+  return level === "intense" ? 120 : 90;
+}
 
 export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
   grass: {
@@ -198,31 +306,36 @@ export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
     label: "Asphalt/Straße",
     short: "Asphalt",
     swatch: "bg-slate-500",
+    image: "/surfaces/asphalt.png",
   },
   gravel: {
     label: "Waldweg/Schotter",
     short: "Schotter",
     swatch: "bg-stone-400",
+    image: "/surfaces/gravel.png",
   },
   tartan: {
     label: "Tartanbahn/Polyurethan",
     short: "Tartan",
     swatch: "bg-red-500",
+    image: "/surfaces/tartan.png",
   },
   hockey_water: {
     label: "Vollkunststoffrasen (Wasserplatz)",
     short: "Wasserplatz",
     swatch: "bg-sky-500",
+    image: "/surfaces/hockey_water.png",
   },
   turf_sand: {
     label: "Kunstrasen sandverfüllt",
     short: "Kunstrasen Sand",
     swatch: "bg-lime-700",
+    image: "/surfaces/turf_black.png",
   },
 };
 
 const KUNSTRASEN_WARNING =
-  "Achtung Oberflächenhitze: Kunstrasen kann sich auf über 50–60 °C aufheizen. WBGT-Risiko ist laut Studienlage NICHT erhöht (Verdunstungskühlung über Naturrasen gleicht die höhere Strahlungswärme aus), aber es besteht Gefahr für Kontaktverbrennungen/Blasen bei Stürzen oder direktem Hautkontakt, sowie erhöhtes subjektives Hitzeempfinden. Im Schatten deutlich geringer.";
+  "Kunstrasen wird 50–60 °C heiß: Verbrennungsgefahr bei Hautkontakt, starke Strahlungswärme in Kopfhöhe. Zum WBGT ist die Studienlage widersprüchlich – meist kein Unterschied zu Naturrasen, eine Studie fand +2,2 °C. Daher kein Zahlenzuschlag, aber Vorsicht. Im Schatten geringer.";
 
 function footballTurf(name: string): UntergrundConfig {
   return {
@@ -241,17 +354,20 @@ const TARTAN_CONFIG: UntergrundConfig = {
   konfidenz: "mittel",
   quelle_id: "pryor_2017",
   hazardWarning:
-    "Tartanbahnen können sich stark aufheizen, on-site WBGT-Messungen lagen signifikant über Wetterstationswerten.",
+    "Tartanbahnen heizen sich stark auf; Vor-Ort-WBGT lag über Wetterstationswerten.",
 };
 
-const ASPHALT_CONFIG: UntergrundConfig = {
-  name: "Asphalt/Straße",
-  wbgtOffset: null,
-  konfidenz: "nicht_zutreffend",
-  quelle_id: "pending",
-  hazardWarning:
-    "Hohe Wärmespeicherung und -rückstrahlung von Asphalt sind gut dokumentiert (Straßenoberflächen erreichen im Sommer deutlich höhere Temperaturen als Luft), aber keine sportartübergreifend belastbare WBGT-Zahl gefunden – anders als bei Kunstrasen (Fußball) existiert für Asphalt im Sport-/Freizeitkontext keine vergleichbare Feldstudie. Beim Radfahren zusätzlich zu beachten: Fahrtwind kühlt bei konstanter Geschwindigkeit, dieser Effekt entfällt bei langsamer Bergauffahrt oder beim Laufen weitgehend.",
-};
+function asphaltConfig(includeFahrtwind: boolean): UntergrundConfig {
+  return {
+    name: "Asphalt/Straße",
+    wbgtOffset: null,
+    konfidenz: "nicht_zutreffend",
+    quelle_id: "pending",
+    hazardWarning: includeFahrtwind
+      ? "Asphalt speichert und strahlt Wärme stark – keine belastbare WBGT-Zahl für den Sport, daher nur Hinweis. Fahrtwind kühlt bei Tempo, kaum bei langsamer Bergauffahrt."
+      : "Asphalt speichert und strahlt Wärme stark – keine belastbare WBGT-Zahl für den Sport, daher nur Hinweis.",
+  };
+}
 
 const GRAVEL_CONFIG: UntergrundConfig = {
   name: "Waldweg/Schotter",
@@ -260,8 +376,7 @@ const GRAVEL_CONFIG: UntergrundConfig = {
   quelle_id: "john_2024_canopy",
   kein_offset_grund:
     "Der Kühleffekt von Waldschatten (bis zu 3–4 °C geringere Lufttemperatur unter Kronendach gegenüber Freifläche laut Studie) wird bereits über das separate Beschattung-Feld erfasst. Ein zusätzlicher Untergrund-Offset würde denselben Effekt doppelt zählen.",
-  hinweis:
-    "Waldwege bieten oft natürlichen Schatten – bitte „Beschattung“ entsprechend anpassen (Halbschatten/Komplett beschattet), statt hier auf einen separaten Zuschlag zu warten.",
+  hinweis: "Oft natürlicher Schatten – Beschattung hier setzen, kein Extra-Zuschlag.",
 };
 
 function pendingNatural(name: string): UntergrundConfig {
@@ -296,17 +411,17 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "niedrig",
         quelle_id: "grundstein_cooper_2020",
         hazardWarning:
-          "Ähnlicher Mechanismus wie Kunstrasen erwartet (geringere Verdunstung als Naturrasen), aber keine surface-spezifische Studie für diesen Belag gefunden – Einschätzung durch Analogie, nicht direkt belegt.",
+          "Ähnlich Kunstrasen erwartet, aber keine Belag-Studie – Einschätzung durch Analogie.",
       },
     },
     thresholds: {
-      // FIFA definiert real nur 2 Bruchpunkte (27 °C freiwillig, 32 °C verpflichtend).
-      // Gelb/Orange innerhalb 27–32 °C ist UI-Interpolation, kein FIFA-Zwischenwert.
-      profi: { gruen_max: 27.0, gelb_max: 29.9, orange_max: 31.9 },
+      // FIFA-Risikokategorien: niedrig <24, moderat 24–29, hoch 30–32, extrem >32.
+      // Die Ampel übernimmt diese vier Stufen direkt.
+      profi: { gruen_max: 23.9, gelb_max: 29.9, orange_max: 32.0 },
       fallback: null,
       sourceId: "fifa_2026",
       interpolationNote:
-        "FIFA definiert real nur 2 Bruchpunkte (27 °C freiwillige, 32 °C verpflichtende Cooling Breaks). Die Unterteilung Gelb/Orange innerhalb 27–32 °C ist eine UI-Interpolation zur graduellen Risikokommunikation, kein offizieller FIFA-Zwischenwert.",
+        "FIFA nutzt vier Risikokategorien (niedrig <24 °C, moderat 24–29 °C, hoch 30–32 °C, extrem >32 °C); unsere Ampel übernimmt sie eins zu eins. Nur die Lücke zwischen 29 und 30 °C wird geschlossen. Verpflichtende Cooling Breaks und die Empfehlung zur Verlegung hängen an der obersten Stufe (>32 °C) – die unteren Stufen beschreiben Risiko, keine FIFA-Pflichtmaßnahme.",
       alternative: {
         sourceId: "fifpro",
         cooling_break_ab: 26.0,
@@ -338,7 +453,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "mittel",
         quelle_id: "pryor_2017",
         hazardWarning:
-          "Japanische Feldstudie fand sandverfüllte/Asche-Plätze z. T. in höherer Gefahrenkategorie als Hardcourt – Rangfolge ist nicht so eindeutig wie oft angenommen.",
+          "Feldstudie: Sand/Asche teils heißer als Hardcourt – Rangfolge nicht eindeutig.",
       },
       hardcourt: {
         name: "Hardcourt / Acryl",
@@ -347,7 +462,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "mittel",
         quelle_id: "pryor_2017",
         hazardWarning:
-          "On-Site-Messungen signifikant über Wetterstations-Werten (Pryor et al. 2017).",
+          "On-Site-WBGT signifikant über Wetterstationswerten (Pryor 2017).",
       },
     },
     thresholds: {
@@ -356,6 +471,8 @@ export const SPORTS: Record<Sport, SportDefinition> = {
       sourceId: "itf_heat_policy",
       extraPauseAt: 30.1,
       suspensionAt: 32.2,
+      interpolationNote:
+        "Die ITF nennt zwei Bruchpunkte: 30,1 °C aktiviert die Extreme Weather Policy, 32,2 °C ist Richtwert für eine Unterbrechung. Unsere Ampel schaltet deshalb bei 30,0 °C auf Rot – genau unterhalb der ITF-Schwelle. Die Stufen Gelb (ab 26 °C) und Orange (ab 28 °C) darunter sind eine abgestufte Vorwarnung ohne eigenen ITF-Wert.",
     },
   },
   beachvolleyball: {
@@ -371,13 +488,14 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "mittel",
         quelle_id: "pryor_2017",
         hazardWarning:
-          "Sand reflektiert UV- und Infrarotstrahlung stark (hohe Albedo) – Kopf-/Oberkörperbereich zusätzlicher thermischer Strahlung ausgesetzt, unabhängig vom WBGT-Wert.",
+          "Sand strahlt stark (hohe Albedo) – zusätzliche Wärmebelastung für Kopf und Oberkörper, unabhängig vom WBGT.",
       },
     },
     thresholds: {
       profi: null,
-      fallback: { gruen_max: 18.0, gelb_max: 23.0, orange_max: 28.0 },
+      fallback: ACSM_FALLBACK_BOUNDS,
       sourceId: "acsm_fallback_beachvolleyball",
+      interpolationNote: ACSM_FALLBACK_NOTE,
     },
   },
   cycling: {
@@ -385,7 +503,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
     label: "Radsport",
     surfaces: ["asphalt", "gravel"],
     untergruende: {
-      asphalt: ASPHALT_CONFIG,
+      asphalt: asphaltConfig(true),
       gravel: GRAVEL_CONFIG,
     },
     thresholds: {
@@ -410,17 +528,18 @@ export const SPORTS: Record<Sport, SportDefinition> = {
     surfaces: ["tartan", "asphalt", "grass", "gravel"],
     untergruende: {
       tartan: TARTAN_CONFIG,
-      asphalt: ASPHALT_CONFIG,
+      asphalt: asphaltConfig(false),
       grass: pendingNatural("Naturrasen"),
       gravel: GRAVEL_CONFIG,
     },
     thresholds: {
-      // World Athletics: 3 benannte Stufen (25 / 28 / 30 °C), kein voller 4-Stufen-Katalog.
-      profi: { gruen_max: 24.9, gelb_max: 27.9, orange_max: 29.9 },
+      // World Athletics, 5 Stufen: <21 nahezu sicher / 21–25 Vorsicht /
+      // 25–28 Warnung / 28–30 starke Warnung / >30 gefährlich.
+      profi: { gruen_max: 20.9, gelb_max: 24.9, orange_max: 27.9 },
       fallback: null,
       sourceId: "world_athletics",
       interpolationNote:
-        "World Athletics nennt 3 benannte Stufen (Warnung 25 °C, starke Warnung 28 °C, gefährlich 30 °C) ohne einen durchgängig publizierten, vollständigen Stufenkatalog wie UCI/FIFA – daher Konfidenz mittel statt hoch.",
+        "World Athletics veröffentlicht fünf Stufen (unter 21 °C nahezu sicher, 21–25 °C Vorsicht, 25–28 °C Warnung, 28–30 °C starke Warnung, über 30 °C gefährlich). Unsere Ampel übernimmt die unteren Stufen unverändert und fasst „starke Warnung“ und „gefährlich“ zu Rot zusammen. Für Straßenläufe nutzt der Verband ein abweichendes Flaggensystem – die Werte hier gelten für Stadionwettbewerbe.",
     },
   },
   jogging: {
@@ -428,15 +547,16 @@ export const SPORTS: Record<Sport, SportDefinition> = {
     label: "Joggen",
     surfaces: ["asphalt", "grass", "gravel", "tartan"],
     untergruende: {
-      asphalt: ASPHALT_CONFIG,
+      asphalt: asphaltConfig(false),
       grass: pendingNatural("Naturrasen"),
       gravel: GRAVEL_CONFIG,
       tartan: TARTAN_CONFIG,
     },
     thresholds: {
       profi: null,
-      fallback: { gruen_max: 17.9, gelb_max: 22.9, orange_max: 27.9 },
+      fallback: ACSM_FALLBACK_BOUNDS,
       sourceId: "acsm_general",
+      interpolationNote: ACSM_FALLBACK_NOTE,
     },
     hinweisIntern:
       "Eigene Kategorie getrennt von Leichtathletik/Wettkampf, da andere Zielgruppe (Freizeitläufer statt Elite-Athleten)",
@@ -453,7 +573,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "mittel",
         quelle_id: "irrigation_studies_turf",
         hinweis:
-          "Bewässerungsstudien an Kunstrasen zeigen, dass aktiv bewässerte/wassergeflutete Kunstrasenflächen in der Oberflächentemperatur nah an Naturrasen herankommen (Differenz oft nur ca. 2 °C), während unbewässerter Kunstrasen 60–80 °C erreichen kann. Da WBGT auf Oberflächentemperatur-Unterschiede ohnehin gedämpft reagiert (siehe Fußball-Kunstrasen-Befund), wird hier kein Zuschlag angesetzt – Konfidenz mittel, da die Quelle Oberflächentemperatur misst, nicht direkt WBGT für Hockey-Wasserplätze.",
+          "Bewässerter Kunstrasen liegt in der Oberflächentemperatur nah am Naturrasen. Kein WBGT-Zuschlag; Quelle misst Oberfläche, nicht WBGT.",
       },
       turf_sand: {
         name: "Kunstrasen sandverfüllt",
@@ -461,13 +581,14 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "nicht_zutreffend",
         quelle_id: "grundstein_cooper_2020",
         hazardWarning:
-          "Gleicher Mechanismus wie beim sandverfüllten Fußball-Kunstrasen erwartet (Verdunstungskühlung fehlt, aber WBGT-Nettoeffekt vermutlich gering) – keine hockeyspezifische Studie gefunden, Übertragung durch Analogie zu Fußball-Kunstrasen-Befunden.",
+          "Wie Fußball-Kunstrasen: Verdunstung fehlt, WBGT-Nettoeffekt vermutlich gering. Keine Hockey-Studie.",
       },
     },
     thresholds: {
       profi: null,
-      fallback: { gruen_max: 17.9, gelb_max: 22.9, orange_max: 27.9 },
+      fallback: ACSM_FALLBACK_BOUNDS,
       sourceId: "fih_air_temp",
+      interpolationNote: ACSM_FALLBACK_NOTE,
     },
   },
 };
@@ -507,19 +628,6 @@ export function baseBoundsForSport(sport: Sport): AmpelBounds {
 export function ageThresholdOffset(sport: Sport, ageGroup: AgeGroup): number {
   if (!usesProfiThresholds(sport)) return 0;
   return AGE_THRESHOLD_OFFSETS[ageGroup];
-}
-
-export function intensityModifier(level: IntensityLevel): IntensityModifier {
-  return INTENSITY_LEVELS.find((item) => item.id === level) ?? INTENSITY_LEVELS[1];
-}
-
-export function intensityThresholdOffset(level: IntensityLevel): number {
-  return intensityModifier(level).schwellenOffset;
-}
-
-/** Label ohne Klammerzusatz, z. B. „Normales Training“. */
-export function intensityHeadline(level: IntensityLevel): string {
-  return intensityModifier(level).label.replace(/\s*\(.*\)$/, "");
 }
 
 /**

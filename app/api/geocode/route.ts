@@ -28,23 +28,26 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
  */
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const key =
-    process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Bewusst nur die serverseitige Variable: ein NEXT_PUBLIC_-Fallback landet im
+  // Client-Bundle und macht den Proxy sinnlos.
+  const key = process.env.GOOGLE_MAPS_API_KEY;
 
   if (!isSameOrigin(request)) {
-    return json("REQUEST_DENIED");
+    return json("REQUEST_DENIED", [], 403);
   }
 
   if (!key) {
-    return json("REQUEST_DENIED");
+    return json("REQUEST_DENIED", [], 500);
   }
 
   if (q.length === 0 || q.length > MAX_QUERY_LENGTH) {
-    return json("INVALID_REQUEST");
+    return json("INVALID_REQUEST", [], 400);
   }
 
   if (isRateLimited(clientKey(request))) {
-    return json("RATE_LIMITED");
+    return json("RATE_LIMITED", [], 429, {
+      "Retry-After": String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)),
+    });
   }
 
   try {
@@ -80,8 +83,16 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function json(status: string, results: SlimPlace[] = []) {
-  return Response.json({ status, results }, { headers: NO_STORE });
+function json(
+  status: string,
+  results: SlimPlace[] = [],
+  httpStatus = 200,
+  extraHeaders: Record<string, string> = {}
+) {
+  return Response.json(
+    { status, results },
+    { status: httpStatus, headers: { ...NO_STORE, ...extraHeaders } }
+  );
 }
 
 function isHardFailure(status: string): boolean {
@@ -159,10 +170,24 @@ function readLocation(
   return { lat: loc.lat, lng: loc.lng };
 }
 
+/**
+ * Vercel setzt `x-real-ip` selbst und liefert damit die echte Client-Adresse.
+ * `x-forwarded-for` kann der Aufrufer frei befüllen – der erste Eintrag ist
+ * daher fälschbar und taugt nicht als Rate-Limit-Schlüssel. Wir nehmen deshalb
+ * zuerst die Proxy-Header und aus `x-forwarded-for` den letzten Eintrag, weil
+ * den der äußerste Proxy angehängt hat.
+ */
 function clientKey(request: NextRequest): string {
+  const real = request.headers.get("x-real-ip")?.trim();
+  if (real) return real;
+
+  const vercel = request.headers.get("x-vercel-forwarded-for")?.trim();
+  if (vercel) return vercel.split(",").pop()?.trim() || "unknown";
+
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) return forwarded.split(",")[0]?.trim() || "unknown";
-  return request.headers.get("x-real-ip") ?? "local";
+  if (forwarded) return forwarded.split(",").pop()?.trim() || "unknown";
+
+  return "local";
 }
 
 function isRateLimited(id: string): boolean {

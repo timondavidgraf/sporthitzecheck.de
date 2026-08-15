@@ -4,12 +4,11 @@ import { useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import {
   AGE_OPTIONS,
-  EVENT_OPTIONS,
-  INTENSITY_OPTIONS,
-  SPORT_OPTIONS,
   intensityOffsetLabel,
+  intensityOptionsForSport,
   labelFor,
   shortLabelFor,
+  SPORT_OPTIONS,
 } from "@/lib/formOptions";
 import {
   SPORTS,
@@ -31,7 +30,7 @@ import {
   sourcesBlockHref,
   sourcesRegistry,
 } from "@/lib/sourcesRegistry";
-import type { AgeGroup, ColorCode, EventType } from "@/lib/wbgtCalculator";
+import type { AgeGroup, ColorCode } from "@/lib/wbgtCalculator";
 
 const AMPEL_BG: Record<ColorCode, string> = {
   green: "bg-green-500",
@@ -63,14 +62,12 @@ function rangeLabel(
 export function ThresholdsBox({
   sport,
   ageGroup,
-  eventType,
   intensity,
   colorCode,
   maxWbgt,
 }: {
   sport: Sport;
   ageGroup: AgeGroup;
-  eventType: EventType;
   intensity: IntensityLevel;
   colorCode: ColorCode;
   maxWbgt: number;
@@ -84,12 +81,12 @@ export function ThresholdsBox({
   const fifpro = config.thresholds.alternative;
   const extraPauseAt = config.thresholds.extraPauseAt;
   const suspensionAt = config.thresholds.suspensionAt;
+  const intensityOptions = intensityOptionsForSport(sport);
 
   const contextTags = [
     shortLabelFor(SPORT_OPTIONS, sport),
-    shortLabelFor(EVENT_OPTIONS, eventType),
     shortLabelFor(AGE_OPTIONS, ageGroup),
-    shortLabelFor(INTENSITY_OPTIONS, intensity),
+    shortLabelFor(intensityOptions, intensity),
   ];
 
   return (
@@ -136,7 +133,7 @@ export function ThresholdsBox({
       )}
       <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-slate-500">
         <span>
-          Intensität: {shortLabelFor(INTENSITY_OPTIONS, intensity)} →{" "}
+          Intensität: {shortLabelFor(intensityOptions, intensity)} →{" "}
           {intensityOffsetLabel(intensity)} (Näherung)
         </span>
         <a

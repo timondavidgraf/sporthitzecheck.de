@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown, ExternalLink, Info } from "lucide-react";
 import { labelFor, SPORT_OPTIONS } from "@/lib/formOptions";
 import {
   getSurfaceConfig,
@@ -13,7 +13,6 @@ import {
   SOURCES_BLOCK_RECS,
   SOURCES_BLOCK_SURFACE,
   SOURCES_BLOCK_THRESHOLDS,
-  SOURCES_DISCLAIMER,
   SOURCES_SECTION_ID,
   sourceAnchorId,
   sourceHref,
@@ -22,7 +21,7 @@ import {
   type SourceConfidence,
   type SourceId,
 } from "@/lib/sourcesRegistry";
-import type { AgeGroup, ColorCode, Surface } from "@/lib/wbgtCalculator";
+import type { ColorCode, Surface } from "@/lib/wbgtCalculator";
 
 const COLOR_LABEL: Record<ColorCode, string> = {
   green: "Grün",
@@ -136,6 +135,17 @@ function SourceCard({ source }: { source: Source }) {
           {source.einschraenkung}
         </p>
       ) : null}
+      {source.url ? (
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-orange-700 underline decoration-orange-200 underline-offset-2 hover:decoration-orange-500"
+        >
+          Quelle öffnen
+          <ExternalLink className="size-3" aria-hidden />
+        </a>
+      ) : null}
     </article>
   );
 }
@@ -177,13 +187,11 @@ function SourceBlock({
 export function ScienceSources({
   sport,
   surface,
-  ageGroup,
   colorCode,
   recommendationQuelleId,
 }: {
   sport: Sport;
   surface: Surface;
-  ageGroup: AgeGroup;
   colorCode: ColorCode;
   recommendationQuelleId: SourceId;
 }) {
@@ -255,9 +263,6 @@ export function ScienceSources({
           />
         </div>
       </details>
-      <p className="px-1 text-xs leading-relaxed text-slate-500">
-        {SOURCES_DISCLAIMER}
-      </p>
     </div>
   );
 }

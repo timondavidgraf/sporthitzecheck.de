@@ -14,6 +14,8 @@ import {
   SPORTS,
   SURFACE_CATALOG,
   ageThresholdOffset,
+  durationForIntensity,
+  eventTypeFromIntensity,
   formatOffset,
   formatSignedOffset,
   getSurfaceConfig,
@@ -27,7 +29,6 @@ import {
 import {
   SHADOW_FACTORS,
   type AgeGroup,
-  type EventType,
   type Shadow,
   type Surface,
 } from "./wbgtCalculator";
@@ -69,36 +70,40 @@ export const AGE_OPTIONS: readonly Option<AgeGroup>[] = [
   },
 ];
 
-export const INTENSITY_OPTIONS: readonly Option<IntensityLevel>[] =
-  INTENSITY_LEVELS.map((level) => ({
-    value: level.id,
-    label: level.label,
-    short: level.short,
-  }));
+export { DEFAULT_INTENSITY, durationForIntensity, eventTypeFromIntensity };
 
-export { DEFAULT_INTENSITY };
+export function intensityOptionsForSport(
+  sport: Sport
+): readonly Option<IntensityLevel>[] {
+  return INTENSITY_LEVELS.map((level) => {
+    const modifier = intensityModifier(level.id, sport);
+    return {
+      value: level.id,
+      label: modifier.label,
+      short: modifier.short,
+    };
+  });
+}
 
-export const EVENT_OPTIONS: readonly Option<EventType>[] = [
-  { value: "training", label: "Training" },
-  {
-    value: "match",
-    label: "Spiel (Pflicht-/Freundschaftsspiel)",
-    short: "Spiel",
-  },
-  { value: "tournament", label: "Turnier" },
-  { value: "other", label: "Sonstiges" },
-];
-
-/** Voreingestellte Dauer in Minuten – richtet sich nach der Art der Belastung. */
-export const DURATION_MIN_BY_EVENT: Record<EventType, number> = {
-  training: 90,
-  match: 120,
-  tournament: 180,
-  other: 60,
-};
-
-export function durationForEvent(eventType: EventType): number {
-  return DURATION_MIN_BY_EVENT[eventType] ?? DURATION_MIN_BY_EVENT.training;
+/**
+ * URL/localStorage: `intensity` hat Vorrang. Fehlt sie, wird ein altes `event=`
+ * auf die nächste Intensität gelegt (Training→easy, Spiel→normal, Turnier→intense).
+ */
+export function parseIntensity(
+  intensityParam: unknown,
+  eventParam?: unknown
+): IntensityLevel {
+  if (
+    intensityParam === "easy" ||
+    intensityParam === "normal" ||
+    intensityParam === "intense"
+  ) {
+    return intensityParam;
+  }
+  if (eventParam === "training") return "easy";
+  if (eventParam === "tournament") return "intense";
+  if (eventParam === "match") return "normal";
+  return DEFAULT_INTENSITY;
 }
 
 function surfaceOption(sport: Sport, surface: Surface): Option<Surface> {
@@ -150,7 +155,6 @@ export const SHADOW_OPTIONS: readonly Option<Shadow>[] = [
 
 export const DEFAULT_SPORT: Sport = "football";
 export const DEFAULT_AGE: AgeGroup = "recreational";
-export const DEFAULT_EVENT: EventType = "training";
 export const DEFAULT_SHADOW: Shadow = "none";
 export const DEFAULT_SURFACE: Surface = "grass";
 
@@ -182,10 +186,6 @@ export function intensityOffsetLabel(intensity: IntensityLevel): string {
   return formatSignedOffset(intensityThresholdOffset(intensity));
 }
 
-export function intensityLabel(intensity: IntensityLevel): string {
-  return intensityModifier(intensity).label;
-}
-
 export function ageGroupHint(sport: Sport): string {
   if (!usesProfiThresholds(sport)) {
     return "Fallback-Wert gilt bereits konservativ für alle Altersgruppen.";
@@ -194,7 +194,7 @@ export function ageGroupHint(sport: Sport): string {
 }
 
 export function intensityHint(): string {
-  return "Unabhängig vom Ereignis. Grobe ACGIH-Analogie (±1,5 °C), nicht für Sport validiert.";
+  return "Näherung nach ACGIH, nicht für Sport validiert. Verschiebt die Ampelschwellen, nicht den WBGT.";
 }
 
 /**

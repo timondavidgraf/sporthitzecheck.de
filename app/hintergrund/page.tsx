@@ -2,91 +2,266 @@ import type { Metadata } from "next";
 import { ExternalLink, Mail } from "lucide-react";
 import { LegalShell } from "@/lib/LegalShell";
 import { MailToLink } from "@/lib/MailToLink";
-import { LINKEDIN_URL, LEGAL_OPERATOR } from "@/lib/legal";
+import { LINKEDIN_URL } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Hintergrund – SportHitzeCheck",
   description:
-    "Warum SportHitzeCheck entstanden ist und was der WBGT über Hitzebelastung im Sport aussagt.",
+    "Warum SportHitzeCheck entstanden ist, was der WBGT über Hitzebelastung im Sport aussagt und wie belastbar die verwendeten Daten sind.",
 };
 
 export default function HintergrundPage() {
   return (
     <LegalShell title="Hintergrund">
-      <section>
+      <section className="flex flex-col gap-2">
         <h2 className="text-base font-bold text-slate-900">Warum es diese App gibt</h2>
-        <p className="mt-1.5">
-          Ich bin Amateurfußballer. An heißen Spieltagen reicht ein Blick auf die
-          Lufttemperatur oft nicht: Schwüle, pralle Sonne auf Kunstrasen und fehlender
-          Schatten machen denselben Gradwert zu einer ganz anderen Belastung. Gleichzeitig
-          bleiben die Vorgaben der Verbände für den Breitensport häufig unscharf – „bei
-          Hitze Pausen einlegen“, ohne eine gemeinsame, nachvollziehbare Messgröße.
+        <p>
+          30&nbsp;°C sind nicht 30&nbsp;°C. Trockene Luft im Halbschatten ist eine
+          andere Belastung als dieselbe Anzeige bei hoher Feuchte, praller Sonne und
+          aufgeheiztem Platz. Für den Breitensport bleiben die Vorgaben trotzdem meist
+          unscharf – „bei Hitze Pausen einlegen“, ohne gemeinsame Messgröße und ohne
+          Schwelle, auf die sich beide Mannschaften und die Spielleitung berufen können.
         </p>
         <p>
-          In meiner Masterarbeit habe ich mich mit Klimaanpassung in
-          Amateurfußballvereinen in Baden-Württemberg beschäftigt. Als Referent in der
-          Vereinsmanagerausbildung des Südbadischen Fußballverbands (SBFV) treffe ich
-          regelmäßig auf Vereinsverantwortliche, die Entscheidungen vor Ort treffen
-          müssen – oft ohne medizinische Abteilung an der Linie und ohne klare Ampel.
+          Der Hintergrund dieser App ist eine Masterarbeit zur Klimaanpassung in
+          Amateurfußballvereinen in Baden-Württemberg, die Arbeit als Referent in der
+          Vereinsmanagerausbildung des Südbadischen Fußballverbands (SBFV) und viele
+          eigene Jahre auf dem Platz. In dieser Ausbildung sitzen genau die Menschen, die
+          bei Hitze entscheiden müssen: Vereinsverantwortliche und Trainerteams, meist
+          ohne medizinische Abteilung an der Seitenlinie.
         </p>
         <p>
-          SportHitzeCheck ist der Versuch, genau diese Lücke zu schließen: eine
-          kostenfreie Orientierungshilfe, die den WBGT nutzbar macht, Platzbedingungen
-          einbezieht und bewusst früher warnt als Schwellen aus dem akklimatisierten
-          Profibereich. Die Entscheidung bleibt bei der Spielleitung und dem Trainerstab
-          vor Ort.
-        </p>
-        <p className="text-slate-500">
-          {LEGAL_OPERATOR.name}, {LEGAL_OPERATOR.addition}
+          SportHitzeCheck macht den WBGT für diese Situation nutzbar: kostenfrei, ohne
+          Anmeldung, mit Platzbedingungen und bewusst früheren Warnstufen als sie für
+          akklimatisierte Profis gelten. Die Entscheidung bleibt vor Ort.
         </p>
       </section>
 
-      <section>
+      <section className="flex flex-col gap-2">
         <h2 className="text-base font-bold text-slate-900">Was der WBGT misst</h2>
-        <p className="mt-1.5">
-          WBGT steht für Wet Bulb Globe Temperature (Feuchtkugel-Globe-Temperatur). Es
-          ist kein zweiter Name für die Lufttemperatur, sondern eine Näherung der
-          Hitzebelastung, der der Körper ausgesetzt ist. Die Formel im Freien gewichtet
-          drei Größen:
+        <p>
+          WBGT steht für Wet Bulb Globe Temperature (Feuchtkugel-Globe-Temperatur) und
+          ist der international etablierte Hitze-Index für Arbeit und Sport im Freien
+          (Grundlage: ISO&nbsp;7243). Er beschreibt nicht die Luft, sondern wie schwer es
+          dem Körper fällt, seine Wärme loszuwerden. Die Außen-Formel gewichtet drei
+          Größen sehr ungleich:
         </p>
-        <ul className="mt-1.5 list-disc space-y-1 pl-5">
+        <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Feuchtkugeltemperatur (Tw)</strong> – wie gut Schweiß verdunsten
-            kann. Hohe Luftfeuchte drückt die Kühlleistung; dieser Anteil zählt am
-            stärksten (70&nbsp;%).
+            <strong>Natürliche Feuchtkugeltemperatur (Tnw), 70&nbsp;%</strong> – wie gut
+            Schweiß verdunsten kann. Der Körper kühlt fast ausschließlich über
+            Verdunstung; ist die Luft schon feucht, fällt dieser Weg weg. Deshalb wiegt
+            dieser Anteil am schwersten. „Natürlich“ heißt: der feuchte Docht steht
+            unbeschirmt in Sonne und Wind – nicht im Schatten wie beim Feuchtkugelwert
+            einer Wetterstation.
           </li>
           <li>
-            <strong>Schwarzkugeltemperatur (Tg)</strong> – Strahlungshitze von Sonne und
-            Untergrund, gemildert durch Wind (20&nbsp;%).
+            <strong>Schwarzkugeltemperatur (Tg), 20&nbsp;%</strong> – Strahlungshitze von
+            Sonne, Himmel und Untergrund, abgemildert durch Wind.
           </li>
           <li>
-            <strong>Lufttemperatur (Ta)</strong> – nur ein Zehntel der Formel
-            (10&nbsp;%).
+            <strong>Lufttemperatur (Ta), 10&nbsp;%</strong> – die Zahl aus der
+            Wetter-App, hier nur ein Zehntel des Ergebnisses.
           </li>
         </ul>
         <p>
-          Deshalb kann der WBGT deutlich unter der Lufttemperatur liegen und trotzdem die
-          relevantere Zahl sein: Bei 32&nbsp;°C Luft und hoher Feuchte plus Sonne ist die
-          Belastung höher, als die 32&nbsp;°C allein vermuten lassen – unabhängig vom
-          Belag. Kunstrasen kann sich stark aufheizen (Kontakthitze), hebt den WBGT laut
-          Studienlage aber nicht pauschal an. FIFA, ACSM und NATA nutzen den WBGT
-          deshalb als Maß für Hitze im Sport.
+          Aus dieser Gewichtung folgt das Verhalten, das zunächst irritiert: Der WBGT
+          liegt in Mitteleuropa meist deutlich unter der Lufttemperatur und ist trotzdem
+          die aussagekräftigere Zahl. Ein schwüler, windstiller Nachmittag bei
+          28&nbsp;°C kann kritischer sein als ein trockener, luftiger Tag bei
+          32&nbsp;°C. FIFA, ACSM, NATA, UCI und ITF stützen ihre Hitzeregeln deshalb auf
+          den WBGT, nicht auf die Lufttemperatur.
+        </p>
+        <p>
+          Wichtig zur Einordnung: Ein echter WBGT wird mit drei Sensoren am Platz
+          gemessen. Diese App <strong>berechnet</strong> die drei Anteile aus
+          Wetterdaten (Temperatur, Feuchte, Wind, Direkt- und Diffusstrahlung). Das ist
+          gut genug, um eine Einheit zu planen oder zu verschieben – es ist keine
+          Messung an der Seitenlinie.
+        </p>
+        <p>
+          Zwei Details entscheiden dabei über die Größenordnung, und beide werden in
+          vielen einfachen WBGT-Rechnern übersehen. Erstens: Aus Temperatur und Feuchte
+          ergibt sich zunächst nur die <em>psychrometrische</em> Feuchtkugel – der Wert
+          im Schatten. Für den WBGT braucht es den unbeschirmten Docht, der zusätzlich
+          von der Sonne aufgeheizt wird. Diese App rechnet den Aufschlag nach dem
+          Verfahren, das auch der US-Wetterdienst für seine WBGT-Vorhersagen nutzt
+          (Hunter &amp; Minyard 1999). Zweitens: Wetterdaten liefern Wind auf
+          10&nbsp;Meter Höhe, gekühlt wird der Körper aber auf zwei Metern. Wer den
+          10-Meter-Wind direkt einsetzt, rechnet zu viel Kühlung ein. Beides zusammen
+          würde den WBGT bei Sonne um gut 1,5&nbsp;°C zu niedrig ausweisen – also
+          genau in die gefährliche Richtung.
         </p>
       </section>
 
-      <section>
-        <h2 className="text-base font-bold text-slate-900">Was SportHitzeCheck daraus macht</h2>
-        <p className="mt-1.5">
-          Die Wetterdaten kommen von Open-Meteo. Daraus entsteht eine WBGT-Näherung, die
-          Beschattung, Untergrund und eine eventuelle Bewässerung berücksichtigt.
-          Altersklassen verschieben die Ampelschwellen, nicht den Wetterwert selbst:
-          Kinder schwitzen weniger effizient, im Amateursport fehlt oft die
-          Hitzeakklimatisierung.
-        </p>
+      <section className="flex flex-col gap-2">
+        <h2 className="text-base font-bold text-slate-900">Wie belastbar sind die Zahlen?</h2>
         <p>
-          Ein Modell kann Mikroklima, individuelle Verfassung und die konkrete Belastung
-          nicht vollständig abbilden. Die App ersetzt keine medizinische Einschätzung und
-          keine Entscheidung vor Ort – sie soll sie vorbereiten.
+          Nicht alles in dieser App ist gleich gut belegt, und das soll sichtbar bleiben.
+          Auf der Ergebnisseite steht hinter jedem Wert die Quelle samt Konfidenz, im
+          Abschnitt „Medizinische Grundlagen &amp; Quellen“. Die Kurzfassung:
+        </p>
+
+        <h3 className="mt-1 text-sm font-bold text-slate-800">
+          Gut belegt: veröffentlichte Verbandsschwellen
+        </h3>
+        <p>
+          Diese Werte sind unverändert übernommen, inklusive ihrer Herkunft aus dem
+          Profibetrieb:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Fußball:</strong> FIFA – vier Risikostufen (niedrig unter
+            24&nbsp;°C, moderat 24–29&nbsp;°C, hoch 30–32&nbsp;°C, extrem über
+            32&nbsp;°C). Verpflichtende Cooling Breaks hängen erst an der obersten
+            Stufe. Die Richtlinie ist rund zwanzig Jahre alt und gilt in der
+            Sportmedizin als weniger schützend als die Vorgaben anderer Verbände;
+            FIFPRO fordert Cooling Breaks ab 26 und Verlegung ab 28&nbsp;°C. Beide
+            Sichtweisen stehen auf der Ergebnisseite.
+          </li>
+          <li>
+            <strong>Tennis:</strong> ITF – zusätzliche Pause ab 30,1&nbsp;°C,
+            Unterbrechungs-Richtwert 32,2&nbsp;°C.
+          </li>
+          <li>
+            <strong>Radsport:</strong> UCI – fünfstufige Skala, Hochrisiko ab 28&nbsp;°C.
+            Der strengste Katalog überhaupt, allerdings mit Fahrtwind kalkuliert.
+          </li>
+          <li>
+            <strong>Grundlage der Ampel:</strong> ACSM Position Stand zu
+            Hitzeerkrankungen (2007) – acht Stufen für gesunde Erwachsene: ab
+            18,4&nbsp;°C steigt das Risiko für Vorbelastete, ab 22,3&nbsp;°C für alle,
+            ab 27,9&nbsp;°C empfiehlt der Standard, Ausdauerwettkämpfe abzusagen.
+            Referenz für alle Sportarten ohne eigenen Verbandswert.
+          </li>
+          <li>
+            <strong>Leichtathletik:</strong> World Athletics veröffentlicht fünf Stufen –
+            unter 21&nbsp;°C nahezu sicher, 21–25&nbsp;°C Vorsicht, 25–28&nbsp;°C
+            Warnung, 28–30&nbsp;°C starke Warnung, über 30&nbsp;°C gefährlich. Für
+            Straßenläufe gilt ein abweichendes Flaggensystem; unsere Werte beziehen sich
+            auf Stadionwettbewerbe.
+          </li>
+        </ul>
+
+        <h3 className="mt-1 text-sm font-bold text-slate-800">
+          Mittlere Konfidenz: Studien, die übertragen werden müssen
+        </h3>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Kunstrasen:</strong> Hier ist die Studienlage
+            <em> widersprüchlich</em>, und das steht so in der App. Grundstein &amp;
+            Cooper (2020) finden keinen signifikanten WBGT-Unterschied zu Naturrasen: die
+            höhere Strahlung wird durch trockenere Luft gegengerechnet. Wardenaar et al.
+            (2022) messen dagegen +2,2&nbsp;°C. Eine Übersichtsarbeit von 2024 stützt
+            mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei Studien
+            Feuchtkugel und Schwarzkugel korrekt gemessen haben. Konsequenz: kein
+            Zahlenzuschlag, weil die Richtung nicht gesichert ist – aber ein
+            ausdrücklicher Warnhinweis, denn 50–60&nbsp;°C Oberflächentemperatur und
+            Kontaktverbrennungen sind unbestritten.
+          </li>
+          <li>
+            <strong>Hardcourt, Tartan, Tiefsand:</strong> Pryor et al. (2017) messen vor
+            Ort 1,0–1,7&nbsp;°C höhere WBGT-Werte als aus Wetterstationsdaten berechnet –
+            in 45&nbsp;% der Fälle führte das zu einer zu günstigen Einstufung. Wichtig:
+            Zwischen den Belägen selbst fand die Studie keine signifikanten Unterschiede.
+            Belegt ist also „Platz wärmer als Wetterstation“, nicht „Belag X wärmer als
+            Belag Y“. Die Zuschläge der App sind deshalb ein vorsichtiger
+            Vor-Ort-Aufschlag für versiegelte Beläge, keine validierte Rangfolge.
+          </li>
+          <li>
+            <strong>Waldschatten:</strong> John et al. (2024) messen im Wald 3–4&nbsp;°C
+            niedrigere <em>Luft</em>temperatur. Als WBGT-Abzug ist das nicht übertragbar,
+            weil Schatten vor allem über die Schwarzkugel wirkt – und die wiegt nur
+            20&nbsp;%. Deshalb läuft Schatten über das Beschattungsfeld und nicht als
+            Untergrundbonus.
+          </li>
+        </ul>
+
+        <h3 className="mt-1 text-sm font-bold text-slate-800">
+          Bewusste Näherung: hier ist die Konfidenz niedrig
+        </h3>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Intensität (±1,5&nbsp;°C):</strong> abgeleitet aus dem
+            arbeitsmedizinischen ACGIH-Modell, das Grenzwerte nach Belastung und
+            Pausenanteil staffelt. Entwickelt für Industriearbeit, nicht für Sport
+            validiert – eine Analogie, keine Übernahme.
+          </li>
+          <li>
+            <strong>Altersklassen (−3&nbsp;°C Breitensport, −4&nbsp;°C U15):</strong>
+            {" "}
+            eine Vorsichtsentscheidung, keine physiologische Aussage – und hier korrigiert
+            die App eine verbreitete Annahme. Die These, Kinder seien grundsätzlich
+            hitzeempfindlicher, gilt in der Sportmedizin als überholt; bei
+            ausreichender Flüssigkeitszufuhr regulieren sie ihre Temperatur ähnlich gut.
+            Der ACSM formuliert es selbst so, dass die Datenlage diesen Glauben nicht
+            stützt, es aber vernünftig sei, Kinder als Risikogruppe zu behandeln. Genau
+            dieser Linie folgen wir. Der tatsächlich belegte Unterschied ist
+            Akklimatisierung: Profis im Turnierbetrieb sind hitzeangepasst, ein
+            Kreisliga-Kader im ersten warmen Mai-Training nicht. Kein Verband beziffert
+            einen Alters-Offset – die Werte sind gesetzt, nicht abgeleitet. Zwei solche
+            Offsets addiert ergeben keine doppelte Sicherheit.
+          </li>
+          <li>
+            <strong>Bewässerung (−0,5&nbsp;°C):</strong> der schwächste Wert im ganzen
+            Modell. Dass Bewässerung die <em>Oberfläche</em> kühlt, ist belegt – sie hält
+            aber kaum an, nach 45–75 Minuten sind wieder über 50&nbsp;°C erreicht. Für
+            den WBGT einer Sportfläche existiert keine Studie. Flächige Feldbewässerung
+            senkt ihn tagsüber um 0,3–1,3&nbsp;°C, hebt ihn nachts aber um bis zu
+            1,3&nbsp;°C an, weil die zusätzliche Feuchte die Feuchtkugel steigen lässt.
+            Deshalb rechnet die App höchstens 0,5&nbsp;°C an, nur in der ersten Stunde,
+            nur bei Sonne und nur unter 70&nbsp;% Luftfeuchte. Bei schwüler Luft greift
+            der Abzug gar nicht.
+          </li>
+          <li>
+            <strong>Beachvolleyball:</strong> Die FIVB schreibt eine WBGT-Messung vor
+            jedem Spiel vor, verknüpft damit aber bewusst keine Grenzwerte – begründet mit
+            dem eigenen Monitoring: Bahr &amp; Reeser (2012) fanden in 48 Welttour-Events
+            genau einen hitzebedingten Rückzug, und der bei einem Spieler mit
+            vorangegangener Magen-Darm-Erkrankung. Das waren hitzeakklimatisierte Profis,
+            die ihr Tempo selbst steuern – kein Argument für gelockerte Werte im
+            Breitensport. Die spätere 11-Jahres-Auswertung fand in 8.530 Spielen 20
+            hitzebedingte Auszeiten mit steigendem Risiko bei höherer Temperatur. Unser
+            ACSM-Fallback bleibt daher konservativ.
+          </li>
+          <li>
+            <strong>Feldhockey:</strong> Die FIH nutzt gar keinen WBGT, sondern
+            <em> Lufttemperatur und Luftfeuchte</em>: Maßnahmen ab 35&nbsp;°C an der
+            Auswechselbank, wobei die Schwelle über 65&nbsp;% Feuchte gesenkt werden kann,
+            plus eine zweite Stufe ab 75&nbsp;% Feuchte oder 42&nbsp;°C auf dem Feld. Das
+            ist eine andere Messgröße und mit unserer Ampel nicht direkt vergleichbar –
+            wir zeigen deshalb den ACSM-Fallback.
+          </li>
+          <li>
+            <strong>Joggen:</strong> kein Verbandswert vorhanden, daher die allgemeine
+            ACSM-Skala.
+          </li>
+          <li>
+            <strong>Asphalt:</strong> Wärmespeicherung und Rückstrahlung sind gut
+            dokumentiert, eine belastbare sportbezogene WBGT-Zahl fehlt. Deshalb nur ein
+            Hinweis und ausdrücklich kein erfundener Zuschlag.
+          </li>
+        </ul>
+
+        <h3 className="mt-1 text-sm font-bold text-slate-800">Grenzen der Wetterdaten</h3>
+        <p>
+          Die Werte kommen von Open-Meteo und beschreiben ein Modellgitter, keinen Sensor
+          am Spielfeldrand. Bis etwa drei Tage im Voraus ist die Prognose belastbar,
+          danach zeigt die App bewusst nur einen Trend. Mikroklima – Kessellage, Beton
+          ringsum, Tribüne als Windschatten, Baumreihe – steckt nicht in den Daten. Wer
+          den Platz kennt, korrigiert über Beschattung und Untergrund nach.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-base font-bold text-slate-900">Was daraus folgt</h2>
+        <p>
+          Die App liefert eine nachvollziehbare Zahl, ihre Herkunft und eine
+          Handlungsempfehlung – damit Hitze planbar wird und nicht am heißesten Tag
+          spontan verhandelt werden muss. Sie ersetzt keine Messung vor Ort, keine
+          medizinische Einschätzung und keine Entscheidung von Spielleitung oder
+          Trainerteam. Bei Symptomen wie Schwindel, Übelkeit oder Verwirrtheit gilt
+          ohnehin nur eins: sofort abbrechen, kühlen, Hilfe holen.
         </p>
       </section>
 

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { CloudSun, Sun, Trees } from "lucide-react";
 import type { Shadow, Surface } from "@/lib/wbgtCalculator";
 import { ALL_SURFACE_OPTIONS } from "@/lib/formOptions";
@@ -17,6 +18,8 @@ export const SHADOW_VISUAL: Record<
 
 const BOX = { form: "size-11", tag: "size-8" } as const;
 const ICON = { form: "size-6", tag: "size-4" } as const;
+/** Kantenlänge in Pixeln, passend zu BOX – next/image braucht feste Maße. */
+const PX = { form: 44, tag: 32 } as const;
 
 type ThumbSize = keyof typeof BOX;
 
@@ -32,9 +35,11 @@ export function SurfaceThumb({
 
   if (option?.image) {
     return (
-      <img
+      <Image
         src={option.image}
         alt=""
+        width={PX[size]}
+        height={PX[size]}
         className={`${box} shrink-0 rounded-md object-cover ring-1 ring-black/10`}
       />
     );

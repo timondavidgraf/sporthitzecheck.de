@@ -33,13 +33,26 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">2. Keine Nutzerkonten</h2>
+        <h2 className="text-base font-bold text-slate-900">
+          2. Keine Nutzerkonten, keine Cookies
+        </h2>
         <p className="mt-1.5">
           SportHitzeCheck erfordert keine Registrierung. Es werden keine Profile
           angelegt. Angaben zu Sportart, Zeitpunkt und Standort fließen in die
           Ergebnis-URL ein und können zusätzlich im lokalen Speicher des Browsers
           (localStorage) liegen. Diese Daten verbleiben auf dem jeweiligen Gerät
           und werden von uns nicht in einem Nutzerkonto gespeichert.
+        </p>
+        <p>
+          Die Anwendung setzt <strong>keine Cookies</strong> und bindet keine
+          Werbe- oder Tracking-Netzwerke ein. Im localStorage werden zwei Dinge
+          abgelegt: die letzte Formulareingabe, damit sie beim nächsten Aufruf
+          nicht erneut getippt werden muss, und die abgerufenen Wetterdaten für
+          maximal 60 Minuten, um wiederholte Abfragen zu vermeiden. Beides dient
+          unmittelbar der angeforderten Funktion und ist damit nach § 25 Abs. 2
+          Nr. 2 TDDDG ohne Einwilligung zulässig. Es findet keine
+          geräteübergreifende Wiedererkennung statt. Sie können diese Daten
+          jederzeit über die Browsereinstellungen löschen.
         </p>
       </section>
 
@@ -85,15 +98,25 @@ export default function DatenschutzPage() {
           </a>
           .
         </p>
-        <p>
-          Die aktuelle Position über die Browser-Ortung wird nur lokal im Gerät
-          ermittelt und nicht an Google gesendet, sofern nicht zusätzlich eine
-          Textsuche ausgelöst wird.
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">
+          5. Standortbestimmung über den Browser
+        </h2>
+        <p className="mt-1.5">
+          Wenn Sie „Aktuellen Standort nutzen“ wählen, fragt Ihr Browser Sie um
+          Erlaubnis und übergibt die Koordinaten anschließend an diese Seite.
+          Rechtsgrundlage ist Ihre Einwilligung nach Art. 6 Abs. 1 lit. a DSGVO in
+          Verbindung mit § 25 Abs. 1 TDDDG; Sie können die Erlaubnis jederzeit in den
+          Browsereinstellungen widerrufen. Die Koordinaten werden nicht an Google
+          übermittelt, sondern ausschließlich für die Wetterabfrage genutzt. Ohne
+          Einwilligung bleibt die Suche per Vereinsname oder Adresse nutzbar.
         </p>
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">5. Wetterdaten (Open-Meteo)</h2>
+        <h2 className="text-base font-bold text-slate-900">6. Wetterdaten (Open-Meteo)</h2>
         <p className="mt-1.5">
           Für die WBGT-Näherung werden Koordinaten an die API von Open-Meteo
           übermittelt. Open-Meteo erhält den Standort als geographische Koordinate
@@ -104,21 +127,29 @@ export default function DatenschutzPage() {
 
       <section>
         <h2 className="text-base font-bold text-slate-900">
-          6. Vercel Web Analytics (cookielos)
+          7. Vercel Web Analytics (cookielos)
         </h2>
         <p className="mt-1.5">
           Wir nutzen Vercel Web Analytics, um Seitenaufrufe in aggregierter Form
           zu verstehen (z. B. welche Seite wie oft aufgerufen wird). Der Dienst
           arbeitet ohne Cookies und ohne dauerhafte Kennung im Browser. Es werden
           keine Werbeprofile gebildet. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
-          DSGVO (Reichweitenmessung in datensparsamem Umfang). Weitere Angaben:
-          Dokumentation von Vercel Web Analytics.
+          DSGVO (Reichweitenmessung in datensparsamem Umfang). Weitere Angaben:{" "}
+          <a
+            href="https://vercel.com/docs/analytics/privacy-policy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            Datenschutzhinweise zu Vercel Web Analytics
+          </a>
+          .
         </p>
       </section>
 
       <section>
         <h2 className="text-base font-bold text-slate-900">
-          7. Fehlermeldungen über Sentry (anonymisierte Logs)
+          8. Fehlermeldungen über Sentry (anonymisierte Logs)
         </h2>
         <p className="mt-1.5">
           Zur Stabilität der Anwendung setzen wir Sentry (Functional Software,
@@ -129,8 +160,12 @@ export default function DatenschutzPage() {
             sendDefaultPii: false
           </code>
           . IP-Adressen, Cookies und andere Identifikatoren werden nicht
-          mitsendet bzw. vor dem Versand entfernt. Sentry ist nur aktiv, wenn
-          eine DSN-Umgebungsvariable gesetzt ist.
+          mitgesendet bzw. vor dem Versand entfernt. Auch der Query-Teil der
+          aufgerufenen Adresse wird entfernt, damit Koordinaten der
+          Ergebnisseite nicht in Fehlermeldungen landen. Sentry ist nur aktiv,
+          wenn eine DSN-Umgebungsvariable gesetzt ist. Die Meldungen laufen über
+          einen Pfad unserer eigenen Domain (<code className="rounded bg-slate-100 px-1 py-0.5 text-xs">/monitoring</code>),
+          Ihr Browser baut also keine direkte Verbindung zu Sentry auf.
         </p>
         <p>
           Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (Fehlerbehebung). Eine
@@ -140,7 +175,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">8. Kartenausschnitt</h2>
+        <h2 className="text-base font-bold text-slate-900">9. Kartenausschnitt</h2>
         <p className="mt-1.5">
           Die Standortvorschau bindet eine Karte von OpenStreetMap ein. Beim Laden
           des Kartenausschnitts kann der Kartenanbieter die IP-Adresse und den
@@ -150,7 +185,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">9. Speicherdauer</h2>
+        <h2 className="text-base font-bold text-slate-900">10. Speicherdauer</h2>
         <p className="mt-1.5">
           Server-Logs werden vom Hoster üblicherweise kurzfristig vorgehalten.
           Analytics- und Fehlerdaten werden nur so lange gespeichert, wie es für
@@ -160,14 +195,24 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">10. Ihre Rechte</h2>
+        <h2 className="text-base font-bold text-slate-900">11. Ihre Rechte</h2>
         <p className="mt-1.5">
           Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
           der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen
           Verarbeitungen auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO. Soweit eine
           Einwilligung Grundlage ist, können Sie diese mit Wirkung für die Zukunft
           widerrufen. Außerdem besteht ein Beschwerderecht bei einer
-          Datenschutzaufsichtsbehörde.
+          Datenschutzaufsichtsbehörde. Für uns zuständig ist der{" "}
+          <a
+            href="https://www.baden-wuerttemberg.datenschutz.de"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            Landesbeauftragte für den Datenschutz und die Informationsfreiheit
+            Baden-Württemberg
+          </a>
+          ; Sie können sich aber auch an die Behörde Ihres Wohnorts wenden.
         </p>
         <p>
           Kontakt für Datenschutzanfragen:{" "}

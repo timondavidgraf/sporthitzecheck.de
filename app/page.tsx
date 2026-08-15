@@ -11,7 +11,6 @@ import {
   ChevronDown,
   CloudSun,
   Droplets,
-  Flag,
   Gauge,
   Grid2x2,
   LocateFixed,
@@ -24,7 +23,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import type { AgeGroup, EventType, Shadow, Surface } from "@/lib/wbgtCalculator";
+import type { AgeGroup, Shadow, Surface } from "@/lib/wbgtCalculator";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
@@ -41,17 +40,16 @@ import {
   AGE_OPTIONS,
   ALL_SURFACE_OPTIONS,
   DEFAULT_AGE,
-  DEFAULT_EVENT,
   DEFAULT_INTENSITY,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
   DEFAULT_SURFACE,
-  EVENT_OPTIONS,
-  INTENSITY_OPTIONS,
   ageGroupHint,
+  durationForIntensity,
   intensityHint,
-  durationForEvent,
+  intensityOptionsForSport,
   parseAgeGroup,
+  parseIntensity,
   parseOption,
   SHADOW_OPTIONS,
   shadowFactorLabel,
@@ -70,7 +68,6 @@ import {
 interface FormState {
   sport: Sport;
   ageGroup: AgeGroup;
-  eventType: EventType;
   intensity: IntensityLevel;
   surface: Surface;
   shadow: Shadow;
@@ -193,7 +190,6 @@ function hoursUntil(startTime: string): number {
 const DEFAULT_FORM: FormState = {
   sport: DEFAULT_SPORT,
   ageGroup: DEFAULT_AGE,
-  eventType: DEFAULT_EVENT,
   intensity: DEFAULT_INTENSITY,
   surface: DEFAULT_SURFACE,
   shadow: DEFAULT_SHADOW,
@@ -245,9 +241,12 @@ type LookupResult =
 
 async function lookupPlaces(q: string, signal?: AbortSignal): Promise<LookupResult> {
   const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal });
-  if (!res.ok) return { ok: false, status: "lookup-failed" };
 
-  const data = (await res.json()) as GoogleMapsResponse;
+  // Der Proxy antwortet bei Limit oder Fehler mit passendem HTTP-Status und
+  // trotzdem mit JSON – deshalb erst den Body lesen, damit die konkrete
+  // Meldung (z. B. Rate-Limit) bei den Nutzer:innen ankommt.
+  const data = (await res.json().catch(() => null)) as GoogleMapsResponse | null;
+  if (!data) return { ok: false, status: "lookup-failed" };
   const status = typeof data.status === "string" ? data.status : "UNKNOWN_ERROR";
   if (status !== "OK" || !data.results?.length) {
     return { ok: false, status: status === "OK" ? "ZERO_RESULTS" : status };
@@ -270,8 +269,7 @@ function sanitize(raw: unknown): FormState {
   return {
     sport,
     ageGroup: parseAgeGroup(v.ageGroup),
-    eventType: parseOption(v.eventType, EVENT_OPTIONS, DEFAULT_FORM.eventType),
-    intensity: parseOption(v.intensity, INTENSITY_OPTIONS, DEFAULT_FORM.intensity),
+    intensity: parseIntensity(v.intensity, (v as { eventType?: unknown }).eventType),
     // Untergrund muss zur Sportart passen (z.B. altes "turf_black" bei Tennis)
     surface: surfaceForSport(sport, surface),
     shadow: parseOption(v.shadow, SHADOW_OPTIONS, DEFAULT_FORM.shadow),
@@ -325,7 +323,10 @@ export default function HomePage() {
     setForm({
       ...restored,
       startTime: toInputValue(start),
-      endTime: addMinutesSameDay(start, durationForEvent(restored.eventType)),
+      endTime: addMinutesSameDay(
+        start,
+        durationForIntensity(restored.sport, restored.intensity)
+      ),
     });
     setHydrated(true);
   }, []);
@@ -386,15 +387,18 @@ export default function HomePage() {
   const changeSport = (sport: Sport) =>
     setForm((prev) => ({ ...prev, sport, surface: surfaceForSport(sport, prev.surface) }));
 
-  /** Ereignis wechseln – die Standarddauer der neuen Art übernehmen. */
-  const changeEvent = (eventType: EventType) =>
+  /** Intensität wechseln – Standarddauer der neuen Stufe übernehmen. */
+  const changeIntensity = (intensity: IntensityLevel) =>
     setForm((prev) => {
       const start = new Date(prev.startTime);
-      if (Number.isNaN(start.getTime())) return { ...prev, eventType };
+      if (Number.isNaN(start.getTime())) return { ...prev, intensity };
       return {
         ...prev,
-        eventType,
-        endTime: addMinutesSameDay(start, durationForEvent(eventType)),
+        intensity,
+        endTime: addMinutesSameDay(
+          start,
+          durationForIntensity(prev.sport, intensity)
+        ),
       };
     });
 
@@ -488,14 +492,11 @@ export default function HomePage() {
 
   useEffect(() => {
     const q = query.trim().slice(0, MAX_PLACE_QUERY);
-    if (!editingLocation && form.lat !== null) {
-      setSuggestions([]);
-      return;
-    }
-    if (q.length < 3) {
-      setSuggestions([]);
-      return;
-    }
+    // Kein Aufräumen des States hier: ob die Liste sichtbar ist, wird beim
+    // Rendern aus `showSuggestions` abgeleitet. Ein setState im Effekt-Körper
+    // würde nur eine zusätzliche Renderrunde auslösen.
+    if (!editingLocation && form.lat !== null) return;
+    if (q.length < 3) return;
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
@@ -535,6 +536,15 @@ export default function HomePage() {
 
   const hasLocation = form.lat !== null && form.lng !== null;
 
+  /**
+   * Die Vorschlagsliste wird beim Rendern ein- und ausgeblendet statt beim
+   * Tippen geleert: Ein bereits bestätigter Ort blendet sie aus, und unter drei
+   * Zeichen gibt es ohnehin keine Suche.
+   */
+  const showSuggestions =
+    (editingLocation || form.lat === null) && query.trim().length >= 3;
+  const visibleSuggestions = showSuggestions ? suggestions : [];
+
   const duration = durationMinutes(form.startTime, form.endTime);
   const timeError =
     !hydrated || !form.startTime || !form.endTime
@@ -570,7 +580,6 @@ export default function HomePage() {
       lng: form.lng!.toFixed(4),
       sport: form.sport,
       age: form.ageGroup,
-      event: form.eventType,
       intensity: form.intensity,
       surface: form.surface,
       shadow: form.shadow,
@@ -663,8 +672,8 @@ export default function HomePage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (suggestions[0]) {
-                        applyPlace(suggestions[0], query.trim());
+                      if (visibleSuggestions[0]) {
+                        applyPlace(visibleSuggestions[0], query.trim());
                       } else {
                         void searchAddress();
                       }
@@ -694,19 +703,20 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {suggestions.length > 0 && (
+              {visibleSuggestions.length > 0 && (
                 <ul
                   role="listbox"
                   aria-label="Ort-Vorschläge"
                   className="absolute z-20 mt-1.5 w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
                 >
-                  {suggestions.map((place, index) => {
+                  {visibleSuggestions.map((place, index) => {
                     const label = buildLocationLabel(place, query.trim());
                     return (
                       <li key={`${label}-${index}`}>
                         <button
                           type="button"
                           role="option"
+                          aria-selected={false}
                           onClick={() => applyPlace(place, query.trim())}
                           className="flex w-full items-start gap-2 px-3.5 py-2.5 text-left text-sm text-slate-700 transition hover:bg-orange-50"
                         >
@@ -784,22 +794,13 @@ export default function HomePage() {
             onChange={(v) => update("ageGroup", v)}
           />
           <SelectField
-            id="event"
-            label="Ereignis"
-            icon={<Flag className="size-4" />}
-            hint="Die Handlungsempfehlung richtet sich nach der Art der Belastung."
-            value={form.eventType}
-            options={EVENT_OPTIONS}
-            onChange={changeEvent}
-          />
-          <SelectField
             id="intensity"
             label="Intensität"
             icon={<Gauge className="size-4" />}
             hint={intensityHint()}
             value={form.intensity}
-            options={INTENSITY_OPTIONS}
-            onChange={(v) => update("intensity", v)}
+            options={intensityOptionsForSport(form.sport)}
+            onChange={changeIntensity}
           />
         </div>
       </Card>
@@ -1059,7 +1060,7 @@ export default function HomePage() {
       )}
 
       <DisclaimerBox />
-      <FeedbackSupport pageLabel="Hauptseite" />
+      <FeedbackSupport />
     </main>
   );
 }
