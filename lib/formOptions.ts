@@ -1,7 +1,7 @@
 /**
  * Gemeinsame Auswahl-Optionen und Beschriftungen.
  *
- * Wird sowohl vom Formular (`/`) als auch vom Dashboard (`/radar`) genutzt –
+ * Wird sowohl vom Formular (`/`) als auch vom Dashboard (`/prognose`) genutzt –
  * so gibt es genau eine Quelle für die deutschen Labels.
  *
  * Sportarten und Untergründe kommen aus `sportsConfig.ts`.
@@ -28,6 +28,7 @@ import {
   surfaceOffsetDisplay,
   thresholdSourceShort,
   usesProfiThresholds,
+  canonicalSurface,
   type IntensityLevel,
   type Sport,
 } from "./sportsConfig";
@@ -343,6 +344,15 @@ export function parseOption<T extends string>(
   fallback: T
 ): T {
   return options.some((o) => o.value === value) ? (value as T) : fallback;
+}
+
+/** Untergrund aus URL/localStorage; alte Kunstrasen-IDs werden zusammengelegt. */
+export function parseSurface(value: unknown, sport: Sport): Surface {
+  const raw = typeof value === "string" ? canonicalSurface(value) : value;
+  return surfaceForSport(
+    sport,
+    parseOption(raw, ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
+  );
 }
 
 export function labelFor<T extends string>(

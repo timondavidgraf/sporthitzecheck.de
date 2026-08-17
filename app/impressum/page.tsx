@@ -3,8 +3,13 @@ import { LegalShell } from "@/lib/LegalShell";
 import { LEGAL_OPERATOR } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Impressum – SportHitzeCheck",
+  title: "Impressum",
   description: "Angaben gemäß § 5 Digitale-Dienste-Gesetz (DDG).",
+  alternates: { canonical: "/impressum" },
+  openGraph: {
+    title: "Impressum – SportHitzeCheck",
+    url: "/impressum",
+  },
 };
 
 export default function ImpressumPage() {

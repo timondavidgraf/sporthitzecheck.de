@@ -23,6 +23,11 @@ export interface DisplayRecommendation {
   officialDecisionNote?: string;
 }
 
+const SUN_PROTECTION_TIPS = new Set([
+  "Sonnenschutz bei wolkenlosem Himmel",
+  "Standard-Sonnenschutz",
+]);
+
 const ACSM_GREEN: StageRecommendation = {
   hauptempfehlung: "Kein besonderes Risiko, regulärer Betrieb sicher.",
   stichpunkte: [
@@ -259,16 +264,20 @@ export function getDisplayRecommendation(
   sport: Sport,
   colorCode: ColorCode,
   eventType: EventType,
-  wbgtValue: number
+  wbgtValue: number,
+  isDaytime = true
 ): DisplayRecommendation {
   const stage = stageFor(sport, colorCode, wbgtValue);
   const match = isCompetitionEvent(eventType);
   const headlineColor =
     sport === "tennis" ? tennisHeadlineColor(colorCode, wbgtValue) : colorCode;
+  const stichpunkte = isDaytime
+    ? stage.stichpunkte
+    : stage.stichpunkte.filter((point) => !SUN_PROTECTION_TIPS.has(point));
   return {
     headline: recommendationHeadline(headlineColor, eventType, sport),
     hauptempfehlung: stage.hauptempfehlung,
-    stichpunkte: stage.stichpunkte,
+    stichpunkte,
     quelle_id: stage.quelle_id,
     officialDecisionNote:
       headlineColor === "red" && match ? OFFICIAL_DECISION_NOTE : undefined,

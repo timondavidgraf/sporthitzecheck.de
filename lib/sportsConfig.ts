@@ -255,8 +255,8 @@ export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
     image: "/surfaces/grass.png",
   },
   turf_black: {
-    label: "Kunstrasen SBR / schwarz",
-    short: "Kunstrasen SBR",
+    label: "Kunstrasen",
+    short: "Kunstrasen",
     swatch: "bg-gray-800",
     image: "/surfaces/turf_black.png",
   },
@@ -334,7 +334,7 @@ export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
 };
 
 const KUNSTRASEN_WARNING =
-  "Kunstrasen wird 50–60 °C heiß: Verbrennungsgefahr bei Hautkontakt, starke Strahlungswärme in Kopfhöhe. Zum WBGT ist die Studienlage widersprüchlich – meist kein Unterschied zu Naturrasen, eine Studie fand +2,2 °C. Daher kein Zahlenzuschlag, aber Vorsicht. Im Schatten geringer.";
+  "Kunstrasen: Oberfläche oft 50–75 °C (Gummi-Infill am heißesten), Verbrennungsgefahr bei Hautkontakt. Der WBGT in Brusthöhe ist trotzdem häufig ähnlich wie auf Naturrasen – trockene Hitze statt Schwüle. Die Ampel unterschätzt Strahlung auf Knöchel- und Wadenhöhe, besonders bei Kindern. Deshalb kein Zahlenzuschlag.";
 
 function footballTurf(name: string): UntergrundConfig {
   return {
@@ -392,18 +392,20 @@ export const SPORTS: Record<Sport, SportDefinition> = {
   football: {
     id: "football",
     label: "Fußball",
-    surfaces: ["grass", "turf_black", "turf_epdm", "turf_sand", "turf_light", "sand_clay"],
+    surfaces: ["grass", "turf_black", "sand_clay"],
     untergruende: {
       grass: {
         name: "Naturrasen",
         wbgtOffset: 0,
         konfidenz: "hoch",
         quelle_id: "grundstein_cooper_2020",
+        kein_offset_grund:
+          "Naturrasen transpiriert: mehr bodennahe Feuchte, weniger extreme Oberflächentemperatur. Der WBGT in Brusthöhe liegt oft nah am Kunstrasen, weil dort die höhere Strahlung durch trockenere Luft ausgeglichen wird – das Gefühl ist Schwüle statt trockener Backofen-Hitze.",
       },
-      turf_black: footballTurf("Kunstrasen SBR / schwarz"),
-      turf_epdm: footballTurf("Kunstrasen EPDM / grün"),
-      turf_sand: footballTurf("Kunstrasen sandverfüllt"),
-      turf_light: footballTurf("Kunstrasen Kork / Natur-Infill"),
+      turf_black: footballTurf("Kunstrasen"),
+      turf_epdm: footballTurf("Kunstrasen"),
+      turf_sand: footballTurf("Kunstrasen"),
+      turf_light: footballTurf("Kunstrasen"),
       sand_clay: {
         name: "Hartplatz / Asche",
         wbgtOffset: null,
@@ -563,7 +565,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
   fieldhockey: {
     id: "fieldhockey",
     label: "Feldhockey",
-    surfaces: ["grass", "hockey_water", "turf_sand"],
+    surfaces: ["grass", "hockey_water", "turf_black"],
     untergruende: {
       grass: pendingNatural("Naturrasen"),
       hockey_water: {
@@ -574,14 +576,8 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         hinweis:
           "Bewässerter Kunstrasen liegt in der Oberflächentemperatur nah am Naturrasen. Kein WBGT-Zuschlag; Quelle misst Oberfläche, nicht WBGT.",
       },
-      turf_sand: {
-        name: "Kunstrasen sandverfüllt",
-        wbgtOffset: null,
-        konfidenz: "nicht_zutreffend",
-        quelle_id: "grundstein_cooper_2020",
-        hazardWarning:
-          "Wie Fußball-Kunstrasen: Verdunstung fehlt, WBGT-Nettoeffekt vermutlich gering. Keine Hockey-Studie.",
-      },
+      turf_black: footballTurf("Kunstrasen"),
+      turf_sand: footballTurf("Kunstrasen"),
     },
     thresholds: {
       profi: null,
@@ -613,6 +609,21 @@ export function sportConfidence(sport: Sport): SourceConfidence {
 
 export function usesProfiThresholds(sport: Sport): boolean {
   return SPORTS[sport].thresholds.profi !== null;
+}
+
+/** Alte Kunstrasen-Varianten (SBR, EPDM, Sand, Kork) → ein Eintrag. */
+const TURF_ALIASES: ReadonlySet<string> = new Set([
+  "turf_light",
+  "turf_epdm",
+  "turf_sand",
+]);
+
+export function canonicalSurface(surface: string): string {
+  return TURF_ALIASES.has(surface) ? "turf_black" : surface;
+}
+
+export function isSyntheticTurf(surface: string): boolean {
+  return canonicalSurface(surface) === "turf_black";
 }
 
 /** Kurzname der Schwellenquelle in der UI: FIFA, ITF, UCI, ACSM. */

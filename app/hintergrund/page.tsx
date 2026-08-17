@@ -5,9 +5,14 @@ import { MailToLink } from "@/lib/MailToLink";
 import { LINKEDIN_URL } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Hintergrund – SportHitzeCheck",
+  title: "Hintergrund",
   description:
     "Warum SportHitzeCheck entstanden ist, was der WBGT über Hitzebelastung im Sport aussagt und wie belastbar die verwendeten Daten sind.",
+  alternates: { canonical: "/hintergrund" },
+  openGraph: {
+    title: "Hintergrund – SportHitzeCheck",
+    url: "/hintergrund",
+  },
 };
 
 export default function HintergrundPage() {
@@ -156,8 +161,13 @@ export default function HintergrundPage() {
             mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei Studien
             Feuchtkugel und Schwarzkugel korrekt gemessen haben. Konsequenz: kein
             Zahlenzuschlag, weil die Richtung nicht gesichert ist – aber ein
-            ausdrücklicher Warnhinweis, denn 50–60&nbsp;°C Oberflächentemperatur und
-            Kontaktverbrennungen sind unbestritten.
+            ausdrücklicher Warnhinweis, denn 50–75&nbsp;°C Oberflächentemperatur
+            (Gummi-Infill am heißesten) und Kontaktverbrennungen sind unbestritten.
+            Infill ändert vor allem die Oberfläche und die Strahlung auf Knöchelhöhe,
+            kaum den WBGT in Brusthöhe: trockene Hitze auf Kunstrasen und Schwüle auf
+            Naturrasen können denselben Index liefern. Kork kann Wasser halten und dann
+            per Verdunstung kühlen; bei Gummi-Granulat fließt Wasser ab. Die Ampel
+            unterscheidet die Infills in der Zahl deshalb nicht.
           </li>
           <li>
             <strong>Hardcourt, Tartan, Tiefsand:</strong> Pryor et al. (2017) messen vor
@@ -217,7 +227,8 @@ export default function HintergrundPage() {
           <li>
             <strong>Bewässerung (−0,5&nbsp;°C):</strong> der schwächste Wert im ganzen
             Modell. Dass Bewässerung die <em>Oberfläche</em> kühlt, ist belegt – sie hält
-            aber kaum an, nach 45–75 Minuten sind wieder über 50&nbsp;°C erreicht. Für
+            aber kaum an: oft schon nach 20–45 Minuten ein deutlicher Rebound, nach
+            45–75 Minuten wieder über 50&nbsp;°C. Für
             den WBGT einer Sportfläche existiert keine Studie. Flächige Feldbewässerung
             senkt ihn tagsüber um 0,3–1,3&nbsp;°C, hebt ihn nachts aber um bis zu
             1,3&nbsp;°C an, weil die zusätzliche Feuchte die Feuchtkugel steigen lässt.

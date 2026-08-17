@@ -6,10 +6,10 @@ import type { Metadata } from "next";
  * sonst konkurrieren beliebig viele Parameter-Varianten mit der Startseite.
  */
 export const metadata: Metadata = {
-  title: "Hitze-Radar",
+  title: "Prognose",
   robots: { index: false, follow: false },
 };
 
-export default function RadarLayout({ children }: { children: React.ReactNode }) {
+export default function PrognoseLayout({ children }: { children: React.ReactNode }) {
   return children;
 }

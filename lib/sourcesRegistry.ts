@@ -189,7 +189,7 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Kein statistisch signifikanter WBGT-Unterschied zwischen Naturrasen, Kunstrasen und Hardcourt-Tennis: der Median lag mittags 0,06 °C, nachmittags rund 0,6 °C auseinander. Kunstrasen war zwar etwa 1 °C wärmer in der Lufttemperatur, aber rund 1 °C trockener im Taupunkt – im Index heben sich beide Effekte auf.",
     konfidenz: "mittel",
     einschraenkung:
-      "Nur eine Klimazone (feucht-subtropisch, USA), und der Naturrasen-Vergleich war bewässert. Es gibt Gegenevidenz: Wardenaar et al. (2022) messen auf Kunstrasen einen signifikant um 2,2 °C höheren WBGT (27,5 vs. 25,3 °C) sowie höhere Globe-Temperatur und geringere Albedo. Eine Übersichtsarbeit (Int J Biometeorol 2024) bestätigt zwar mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei der Studien Feuchtkugel und Schwarzkugel korrekt gemessen haben. Deshalb gilt hier: kein Zahlenzuschlag, aber ein ausdrücklicher Warnhinweis zu Strahlungshitze und Kontaktverbrennungen.",
+      "Nur eine Klimazone (feucht-subtropisch, USA), und der Naturrasen-Vergleich war bewässert. Messhöhe war die übliche WBGT-Höhe, nicht Knöchelhöhe: Infill (SBR, Sand, Kork, TPE) ändert die Oberflächentemperatur stark, den Index in 1,2 m aber kaum. Es gibt Gegenevidenz: Wardenaar et al. (2022) messen auf Kunstrasen einen signifikant um 2,2 °C höheren WBGT (27,5 vs. 25,3 °C) sowie höhere Globe-Temperatur und geringere Albedo. Eine Übersichtsarbeit (Int J Biometeorol 2024) bestätigt zwar mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei der Studien Feuchtkugel und Schwarzkugel korrekt gemessen haben. Deshalb gilt hier: kein Zahlenzuschlag, aber ein ausdrücklicher Warnhinweis zu Strahlungshitze, Kontaktverbrennungen und der bodennahen Belastung – besonders bei Kindern.",
   },
   pryor_2017: {
     id: "pryor_2017",
@@ -224,10 +224,10 @@ export const sourcesRegistry: Record<SourceId, Source> = {
     organisation: "u. a. Penn State SSRC; Commun Earth Environ 2024",
     url: "https://www.nature.com/articles/s43247-024-01959-7",
     kernaussage:
-      "Bewässerung senkt die Oberflächentemperatur deutlich, hält aber kaum an: Penn State misst bereits nach 45–75 Minuten wieder über 50 °C. Für den WBGT gibt es keine Sportplatz-Studie; flächige Feldbewässerung senkt ihn tagsüber um 0,3–1,3 °C, hebt ihn nachts aber um 0,4–1,3 °C an, weil die zusätzliche Feuchte die Feuchtkugel steigen lässt.",
+      "Bewässerung senkt die Oberflächentemperatur deutlich, der Effekt hält aber kaum: McNitt et al. (Penn State 2008) sahen den Rebound oft schon nach etwa 20 Minuten, Serensits et al. (2011) nach 45–75 Minuten wieder Werte über 50 °C; Williams & Pulley (2002) maßen nach 5 Minuten bereits einen starken Wiederanstieg. Für den WBGT auf Sportplätzen gibt es keine Messung; flächige Feldbewässerung senkt ihn tagsüber um 0,3–1,3 °C, hebt ihn nachts aber um 0,4–1,3 °C an, weil extra Feuchte die Feuchtkugel steigen lässt.",
     konfidenz: "niedrig",
     einschraenkung:
-      "Diese App rechnet deshalb nur 0,5 °C an, und das nur in der ersten Stunde, nur bei Sonne und nur unter 70 % Luftfeuchte. Der Wert ist eine bewusst vorsichtige Schätzung, kein belegter Messwert. Bei schwüler Luft kann Bewässerung den WBGT sogar erhöhen – dann greift der Abzug nicht.",
+      "Diese App rechnet deshalb nur 0,5 °C an, und das nur in der ersten Stunde, nur bei Sonne und nur unter 70 % Luftfeuchte. Der Wert ist eine bewusst vorsichtige Schätzung, kein belegter Messwert – und gilt für alle Infills gleich. Kork/organisch kann Wasser halten und dann stärker verdunsten; SBR/EPDM lässt Wasser schnell abfließen. Bei schwüler Luft kann Bewässerung den WBGT sogar erhöhen – dann greift der Abzug nicht.",
   },
   wbgt_model: {
     id: "wbgt_model",

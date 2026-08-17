@@ -3,9 +3,14 @@ import { LegalShell } from "@/lib/LegalShell";
 import { CONTACT_EMAIL, LEGAL_OPERATOR } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Datenschutz – SportHitzeCheck",
+  title: "Datenschutz",
   description:
     "Datenschutzerklärung zu SportHitzeCheck, Google Places, Vercel Analytics und Sentry.",
+  alternates: { canonical: "/datenschutz" },
+  openGraph: {
+    title: "Datenschutz – SportHitzeCheck",
+    url: "/datenschutz",
+  },
 };
 
 export default function DatenschutzPage() {

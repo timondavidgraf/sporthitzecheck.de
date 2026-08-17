@@ -34,6 +34,12 @@ const nextConfig: NextConfig = {
   // Version im Response-Header verrät nur Angriffsfläche
   poweredByHeader: false,
 
+  async redirects() {
+    return [
+      { source: "/radar", destination: "/prognose", permanent: true },
+    ];
+  },
+
   async headers() {
     return [
       {

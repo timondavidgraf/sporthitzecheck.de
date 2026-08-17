@@ -29,10 +29,8 @@ import {
   Trees,
 } from "lucide-react";
 import {
-  ALL_SURFACE_OPTIONS,
   DEFAULT_SHADOW,
   DEFAULT_SPORT,
-  DEFAULT_SURFACE,
   ageOffsetLabel,
   ageOptionsForSport,
   eventTypeFromIntensity,
@@ -42,12 +40,12 @@ import {
   parseIntensity,
   parseOption,
   parsePerformanceLevel,
+  parseSurface,
   PERFORMANCE_OPTIONS,
   performanceOffsetLabel,
   SHADOW_OPTIONS,
   shortLabelFor,
   SPORT_OPTIONS,
-  surfaceForSport,
   surfaceOffsetLabel,
   surfacesForSport,
   type IntensityLevel,
@@ -56,8 +54,14 @@ import {
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
+import { InfoTip } from "@/lib/InfoTip";
 import { WBGT_CALCULATED_NOTE, WBGT_EXPLAINER } from "@/lib/legal";
 import { OsmMap } from "@/lib/OsmMap";
+import {
+  shadowEffectTip,
+  surfaceEffectTip,
+  wateringEffectTip,
+} from "@/lib/pitchTooltips";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
 import { ThresholdsBox } from "@/lib/ThresholdsBox";
 import { ScienceSources, SourceInfoButton } from "@/lib/ScienceSources";
@@ -70,7 +74,6 @@ import {
   intensityHeadline,
   intensityThresholdOffset,
   performanceThresholdOffset,
-  showsSurfaceSourceInfo,
   sportAllowsWatering,
   SPORTS,
   surfaceOffsetBreakdownValue,
@@ -244,10 +247,7 @@ function RadarContent() {
     searchParams.get("event")
   );
   const eventType = eventTypeFromIntensity(sport, intensity);
-  const surface = surfaceForSport(
-    sport,
-    parseOption(searchParams.get("surface"), ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
-  );
+  const surface = parseSurface(searchParams.get("surface"), sport);
   const shadow = parseOption(searchParams.get("shadow"), SHADOW_OPTIONS, DEFAULT_SHADOW);
   const watered =
     sportAllowsWatering(sport) && searchParams.get("watered") === "true";
@@ -1004,7 +1004,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto w-full max-w-md px-4 py-6 lg:max-w-6xl">
       <div className="mb-4">
-        <BrandHeader compact />
+        <BrandHeader />
       </div>
       {children}
     </main>
@@ -1195,6 +1195,7 @@ function PlaceBox({
           <span className="flex w-fit items-center gap-1 rounded-md bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700">
             <Droplets className="size-3" aria-hidden />
             gewässert
+            <InfoTip label="Hinweis zur Bewässerung" {...wateringEffectTip(surface)} />
           </span>
         )}
         <div className="flex items-stretch gap-1.5">
@@ -1203,9 +1204,10 @@ function PlaceBox({
             <span className="min-w-0 truncate">
               {shortLabelFor(surfacesForSport(sport), surface)}
             </span>
-            {showsSurfaceSourceInfo(config.konfidenz) ? (
-              <SourceInfoButton sourceId={config.quelle_id} variant="anchor" />
-            ) : null}
+            <InfoTip
+              label={`Hinweis zu ${shortLabelFor(surfacesForSport(sport), surface)}`}
+              {...surfaceEffectTip(sport, surface)}
+            />
             {offsetLabel == null ? (
               <ThermometerSun className="size-3.5 shrink-0 text-amber-600" aria-hidden />
             ) : null}
@@ -1213,6 +1215,10 @@ function PlaceBox({
           <span className="flex min-w-0 flex-1 items-center gap-2 rounded-md bg-slate-100 py-1 pr-2 pl-1 text-xs font-medium text-slate-600">
             <ShadowThumb shadow={shadow} size="tag" />
             <span className="min-w-0 truncate">{shortLabelFor(SHADOW_OPTIONS, shadow)}</span>
+            <InfoTip
+              label={`Hinweis zu ${shortLabelFor(SHADOW_OPTIONS, shadow)}`}
+              {...shadowEffectTip(shadow)}
+            />
           </span>
         </div>
         {config.wbgtOffset == null || config.hazardWarning ? (

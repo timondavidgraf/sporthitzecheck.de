@@ -7,9 +7,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // /radar existiert nur mit Query-Parametern und hat ohne sie keinen
-        // eigenen Inhalt; /monitoring ist der Sentry-Tunnel
-        disallow: ["/radar", "/monitoring"],
+        // /prognose existiert nur mit Query-Parametern und hat ohne sie keinen
+        // eigenen Inhalt; /radar leitet dorthin um; /monitoring ist der Sentry-Tunnel
+        disallow: ["/prognose", "/radar", "/monitoring", "/api/"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

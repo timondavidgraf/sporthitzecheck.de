@@ -16,6 +16,7 @@ import {
   Droplets,
   Gauge,
   Grid2x2,
+  Info,
   LocateFixed,
   Loader2,
   MapPin,
@@ -34,16 +35,19 @@ import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
 import { OsmMap } from "@/lib/OsmMap";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
-import { SourceInfoButton } from "@/lib/ScienceSources";
+import { InfoTip } from "@/lib/InfoTip";
+import {
+  shadowEffectTip,
+  surfaceEffectTip,
+  wateringEffectTip,
+} from "@/lib/pitchTooltips";
 import {
   getSurfaceConfig,
   hasNumericSurfaceOffset,
-  showsSurfaceSourceInfo,
   sportAllowsWatering,
 } from "@/lib/sportsConfig";
 import { isGoogleQuotaOrOutage, messageForGoogleStatus } from "@/lib/googleStatus";
 import {
-  ALL_SURFACE_OPTIONS,
   DEFAULT_AGE,
   DEFAULT_INTENSITY,
   DEFAULT_PERFORMANCE,
@@ -58,6 +62,7 @@ import {
   parseIntensity,
   parseOption,
   parsePerformanceLevel,
+  parseSurface,
   PERFORMANCE_OPTIONS,
   SHADOW_OPTIONS,
   shadowFactorLabel,
@@ -85,7 +90,7 @@ interface FormState {
   startTime: string;
   /** Ende der Einheit als reine Uhrzeit ("16:00") – immer am Tag des Beginns */
   endTime: string;
-  /** Anzeigename des gewählten Ortes (nur UI, wird nicht an /radar übergeben) */
+  /** Anzeigename des gewählten Ortes (nur UI, wird nicht an /prognose übergeben) */
   locationLabel: string;
   lat: number | null;
   lng: number | null;
@@ -296,7 +301,6 @@ function sanitize(raw: unknown): FormState {
   const v = raw as Partial<FormState>;
 
   const sport = parseOption(v.sport, SPORT_OPTIONS, DEFAULT_FORM.sport);
-  const surface = parseOption(v.surface, ALL_SURFACE_OPTIONS, DEFAULT_FORM.surface);
 
   return {
     sport,
@@ -306,8 +310,7 @@ function sanitize(raw: unknown): FormState {
       v.ageGroup
     ),
     intensity: parseIntensity(v.intensity, (v as { eventType?: unknown }).eventType),
-    // Untergrund muss zur Sportart passen (z.B. altes "turf_black" bei Tennis)
-    surface: surfaceForSport(sport, surface),
+    surface: parseSurface(v.surface, sport),
     shadow: parseOption(v.shadow, SHADOW_OPTIONS, DEFAULT_FORM.shadow),
     watered: typeof v.watered === "boolean" ? v.watered : DEFAULT_FORM.watered,
     startTime: "",
@@ -653,7 +656,7 @@ export default function HomePage() {
       end: endStamp(form.startTime, form.endTime),
     });
 
-    router.push(`/radar?${params.toString()}`);
+    router.push(`/prognose?${params.toString()}`);
   };
 
   // --- UI ------------------------------------------------------------------
@@ -664,7 +667,20 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-6 lg:max-w-6xl">
-      <BrandHeader />
+      <BrandHeader asH1 />
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+          <Info className="size-4 text-orange-500" aria-hidden />
+          Warum nicht der Wetterbericht?
+        </h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+          Die Lufttemperatur sagt nicht, wie belastend Training oder Spiel wirklich
+          sind. Schwüle, Sonne, Wind und ein heißer Belag ändern die Belastung stark –
+          oft bei derselben Gradzahl. SportHitzeCheck schätzt den WBGT für euren Ort
+          und Zeitraum und zeigt eine Ampel mit Handlungsempfehlungen.
+        </p>
+      </section>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
       {/* --- Standort --- */}
@@ -967,7 +983,6 @@ export default function HomePage() {
 
             <div className="mt-1.5 flex flex-col gap-2">
               {surfaceOptions.map((option) => {
-                const config = getSurfaceConfig(form.sport, option.value);
                 const offsetLabel = surfaceOffsetLabel(form.sport, option.value);
                 return (
                   <label
@@ -987,9 +1002,10 @@ export default function HomePage() {
                       {option.label}
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
-                      {showsSurfaceSourceInfo(config.konfidenz) ? (
-                        <SourceInfoButton sourceId={config.quelle_id} />
-                      ) : null}
+                      <InfoTip
+                        label={`Hinweis zu ${option.label}`}
+                        {...surfaceEffectTip(form.sport, option.value)}
+                      />
                       {offsetLabel == null ? (
                         <ThermometerSun
                           className="size-4 text-amber-600"
@@ -1031,8 +1047,14 @@ export default function HomePage() {
                   <span className="min-w-0 flex-1 text-sm font-medium text-slate-800">
                     {option.label}
                   </span>
-                  <span className="shrink-0 text-xs font-semibold text-slate-400 tabular-nums">
-                    {shadowFactorLabel(option.value)}
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="text-xs font-semibold text-slate-400 tabular-nums">
+                      {shadowFactorLabel(option.value)}
+                    </span>
+                    <InfoTip
+                      label={`Hinweis zu ${option.label}`}
+                      {...shadowEffectTip(option.value)}
+                    />
                   </span>
                 </label>
               ))}
@@ -1099,9 +1121,10 @@ export default function HomePage() {
               <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                 <Droplets className="size-4 text-sky-600" aria-hidden />
                 Platz wird kurz vorher gewässert
-              </span>
-              <span className="mt-0.5 block text-xs text-slate-500">
-                Kühlt nur die erste Stunde spürbar ab.
+                <InfoTip
+                  label="Hinweis zur Bewässerung"
+                  {...wateringEffectTip(form.surface)}
+                />
               </span>
             </span>
           </label>

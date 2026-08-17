@@ -594,9 +594,10 @@ export function getRecommendation(
   sport: Sport,
   colorCode: ColorCode,
   eventType: EventType = 'training',
-  wbgtValue = 0
+  wbgtValue = 0,
+  isDaytime = true
 ) {
-  return getDisplayRecommendation(sport, colorCode, eventType, wbgtValue);
+  return getDisplayRecommendation(sport, colorCode, eventType, wbgtValue, isDaytime);
 }
 
 export function getRecommendationLabel(
@@ -737,7 +738,14 @@ export function calculateWBGTForecast(
       baseWbgt + shadeRadiationAdjustment + effectiveSurfaceOffset + wateringOffset
     );
     const colorCode = getColorCode(wbgtValue, sport, ageGroup, intensity, performanceLevel);
-    const recommendation = getRecommendation(sport, colorCode, eventType, wbgtValue);
+    const isDaytime = globalUnshaded > 0;
+    const recommendation = getRecommendation(
+      sport,
+      colorCode,
+      eventType,
+      wbgtValue,
+      isDaytime
+    );
 
     forecast.push({
       timestamp,

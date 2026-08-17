@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "SportHitzeCheck",
     short_name: "HitzeCheck",
     description:
-      "Hitze-Ampel für Sport und Vereine: WBGT-Näherung aus Wetterdaten mit Handlungsempfehlungen.",
+      "Hitze-Ampel für den Sport und Vereine: WBGT-Näherung aus Wetterdaten mit Handlungsempfehlungen.",
     start_url: "/",
     display: "standalone",
     background_color: "#f8fafc",
