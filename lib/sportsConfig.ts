@@ -412,7 +412,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
         konfidenz: "niedrig",
         quelle_id: "grundstein_cooper_2020",
         hazardWarning:
-          "Ähnlich Kunstrasen erwartet, aber keine Belag-Studie – Einschätzung durch Analogie.",
+          "Für Hartplatz/Asche gibt es keine WBGT-Belagstudie. Die Oberfläche kann sich stark aufheizen – deshalb nur ein Warnhinweis, kein Zahlenzuschlag.",
       },
     },
     thresholds: {

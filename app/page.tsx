@@ -1134,12 +1134,13 @@ export default function HomePage() {
       </div>
 
       {/* --- Submit --- */}
+      <DisclaimerBox />
       <button
         type="button"
         onClick={startCheck}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-5 py-4 text-lg font-extrabold tracking-tight text-white shadow-sm transition hover:bg-orange-600 active:scale-[0.99] lg:mx-auto lg:max-w-md"
       >
-        HitzeCheck starten
+        SportHitzeCheck starten
         <ArrowRight className="size-5" aria-hidden />
       </button>
 
@@ -1153,7 +1154,6 @@ export default function HomePage() {
         </p>
       )}
 
-      <DisclaimerBox />
       <FeedbackSupport />
     </main>
   );
