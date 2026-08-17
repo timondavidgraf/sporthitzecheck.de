@@ -17,6 +17,7 @@ export type SourceId =
   | "world_athletics"
   | "acsm_general"
   | "aging_heat"
+  | "notley_2025_youth"
   | "acsm_fallback_beachvolleyball"
   | "fivb_studie_2012"
   | "fih_air_temp"
@@ -113,7 +114,20 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Achtstufige WBGT-Tabelle für gesunde Erwachsene. Ab 18,4 °C steigt das Risiko für Vorbelastete, ab 22,3 °C für alle, ab 25,7 °C deutlich für Unfitte und Nichtakklimatisierte; ab 27,9 °C empfiehlt der Standard, Ausdauerwettkämpfe abzusagen oder zu verlegen.",
     konfidenz: "hoch",
     einschraenkung:
-      "Der Standard betont selbst, dass lokales Klima und Akklimatisierungsgrad höhere Belastungen zulassen können. Für Kinder nennt er eine eigene Tabelle mit Abbruch über 29 °C – praktisch dieselbe Größenordnung wie bei Erwachsenen und kein Beleg für einen großen Alters-Offset. Die App setzt deshalb nur −1 °C als Vorsicht trotz schwacher Physiologie-Lage. Ältere Erwachsene behandelt sie getrennt (Quelle zu Hitzestress im Alter).",
+      "Tabelle 2 unterscheidet zwei Spalten: nicht akklimatisierte, weniger fitte Personen vs. akklimatisierte, fitte. Dieselben Maßnahmen (intensives Training begrenzen, abbrechen) liegen rund 2 °C auseinander – z. B. Abbruch 30,1 vs. 32,3 °C. Daraus kommt der Leistungsabzug der App (−2,0 °C), kein FIFA-/ITF-Wert. Für Kinder nennt der Standard eine eigene Tabelle mit Abbruch über 29 °C; das stützt keinen großen Alters-Offset. Ältere Erwachsene behandelt die App getrennt (Quelle zu Hitzestress im Alter).",
+  },
+  notley_2025_youth: {
+    id: "notley_2025_youth",
+    typ: "wissenschaftliche_studie",
+    name: "Thermoregulation and dehydration in children and youth exercising in extreme heat compared with adults",
+    organisation: "Notley et al., Br J Sports Med 59(16):1151; AAP 2011/2019",
+    jahr: 2025,
+    url: "https://bjsm.bmj.com/content/59/16/1151",
+    kernaussage:
+      "Kinder und Jugendliche zeigen beim Sport in der Hitze ähnliche Kerntemperaturanstiege wie Erwachsene; das physiologische Dehydratationsrisiko ist nicht größer. Das bestätigt die Linie der American Academy of Pediatrics (2011, bestätigt 2019): bei ausreichender Flüssigkeit keine grundsätzlich schlechtere Thermoregulation.",
+    konfidenz: "hoch",
+    einschraenkung:
+      "Gilt für gesunde, hydrierte Kinder. Im Vereinsbetrieb bleiben Aufsicht, Flüssigkeitszugang und die Fähigkeit, die Belastung selbst zu steuern, der praktische Unterschied. Deshalb behält die App einen kleinen Vorsichtsabzug (−1 °C), obwohl die Physiologie ihn nicht verlangt.",
   },
   aging_heat: {
     id: "aging_heat",

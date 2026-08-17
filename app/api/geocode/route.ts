@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { SITE_URL } from "@/lib/legal";
 
 const MAX_QUERY_LENGTH = 120;
 const MAX_RESULTS = 5;
@@ -51,9 +52,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const referer = googleReferer(request);
     const placesData = await googleGet(
       `https://maps.googleapis.com/maps/api/place/textsearch/json` +
-        `?query=${encodeURIComponent(q)}&language=de&region=de&key=${key}`
+        `?query=${encodeURIComponent(q)}&language=de&region=de&key=${key}`,
+      referer
     );
 
     if (isHardFailure(placesData.status)) {
@@ -66,7 +69,8 @@ export async function GET(request: NextRequest) {
 
     const geoData = await googleGet(
       `https://maps.googleapis.com/maps/api/geocode/json` +
-        `?address=${encodeURIComponent(q)}&language=de&region=de&key=${key}`
+        `?address=${encodeURIComponent(q)}&language=de&region=de&key=${key}`,
+      referer
     );
 
     if (isHardFailure(geoData.status)) {
@@ -103,8 +107,32 @@ function isHardFailure(status: string): boolean {
   );
 }
 
-async function googleGet(url: string): Promise<GoogleMapsResponse> {
-  const res = await fetch(url, { signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS) });
+/**
+ * Google prüft Website-Beschränkungen am Referer-Header. Der Browser ruft
+ * Google nicht direkt auf – der Proxy muss den Origin deshalb selbst setzen.
+ */
+function googleReferer(request: NextRequest): string {
+  const origin = request.headers.get("origin");
+  if (origin) return origin.endsWith("/") ? origin : `${origin}/`;
+  const referer = request.headers.get("referer");
+  if (referer) {
+    try {
+      return `${new URL(referer).origin}/`;
+    } catch {
+      // ungültiger Header, Produktionsdomain verwenden
+    }
+  }
+  return `${SITE_URL}/`;
+}
+
+async function googleGet(
+  url: string,
+  referer: string
+): Promise<GoogleMapsResponse> {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(GOOGLE_TIMEOUT_MS),
+    headers: { Referer: referer },
+  });
 
   if (res.status === 429) return { status: "OVER_QUERY_LIMIT", results: [] };
   if (res.status === 403) return { status: "REQUEST_DENIED", results: [] };

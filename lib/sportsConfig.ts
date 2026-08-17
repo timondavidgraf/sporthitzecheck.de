@@ -102,13 +102,13 @@ export interface SportDefinition {
 /**
  * Altersabzug von der Verbandsschwelle. Nur wenn `profi` gesetzt ist.
  *
- * Jugend: −1 °C wie in der ursprünglichen Vorgabe – Vorsicht, keine Physiologie.
- * Die Annahme, Kinder seien hitzeempfindlicher, gilt als überholt (Rowland 2008;
- * Falk & Dotan 2008). Der ACSM hält es dennoch für vernünftig, sie als
- * Risikogruppe zu behandeln.
+ * Jugend: −1 °C als Vorsicht, nicht als Physiologie. AAP (2011, 2019) und
+ * Notley et al. (BJSM 2025) zeigen vergleichbare Kerntemperaturen bei Kindern
+ * und Erwachsenen, sofern Flüssigkeit verfügbar ist. Der ACSM führt Kinder
+ * trotzdem als Risikogruppe (Aufsicht, Belastungsteuerung).
  *
- * 65+: dieselbe −1 °C. Die Richtung ist besser belegt (geringere Schweißrate und
- * Hautdurchblutung ab etwa 60 Jahren; CDC 65+; Meade et al. 2023), der Betrag
+ * 65+: dieselbe −1 °C. Die Richtung ist belegt (Schweißrate, Hautdurchblutung,
+ * niedrigere kritische Umweltgrenzen; Meade et al. 2023; CDC 65+), der Betrag
  * ist gesetzt, kein Verbandswert.
  */
 export const AGE_BAND_OFFSETS: Record<AgeBand, number> = {
@@ -121,8 +121,9 @@ export const AGE_BAND_OFFSETS: Record<AgeBand, number> = {
  * Leistungsabzug: nur Erwachsene können „Professionell / Akklimatisiert“ wählen.
  * Jugend und 65+ werden auf Breitensport gezwungen.
  *
- * −2 °C für Breitensport ist eine grobe Analogie zum Abstand Elite vs.
- * nicht akklimatisierte Freizeitsportler, kleiner als der frühere Mischwert −3.
+ * −2 °C für Breitensport folgt der ACSM-Tabelle 2 (Armstrong 2007): dieselben
+ * Maßnahmen greifen für nicht akklimatisierte, weniger fitte Personen rund
+ * eine Stufe früher (Abbruch 30,1 vs. 32,3 °C). Kein Verbandswert.
  */
 export const PERFORMANCE_OFFSETS: Record<PerformanceLevel, number> = {
   recreational: -2.0,
@@ -612,6 +613,15 @@ export function sportConfidence(sport: Sport): SourceConfidence {
 
 export function usesProfiThresholds(sport: Sport): boolean {
   return SPORTS[sport].thresholds.profi !== null;
+}
+
+/** Kurzname der Schwellenquelle in der UI: FIFA, ITF, UCI, ACSM. */
+export function thresholdSourceShort(sport: Sport): string {
+  if (!usesProfiThresholds(sport)) return "ACSM";
+  const organisation = sourcesRegistry[SPORTS[sport].thresholds.sourceId].organisation;
+  if (organisation === "International Tennis Federation") return "ITF";
+  if (organisation === "Union Cycliste Internationale") return "UCI";
+  return organisation ?? "Verband";
 }
 
 export function baseBoundsForSport(sport: Sport): AmpelBounds {

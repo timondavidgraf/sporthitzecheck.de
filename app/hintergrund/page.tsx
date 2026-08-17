@@ -178,11 +178,21 @@ export default function HintergrundPage() {
           <li>
             <strong>65 Jahre und älter (extra −1&nbsp;°C):</strong> die Richtung ist
             besser belegt als bei Kindern. Ab etwa 60 Jahren sinken Schweißrate und
-            Hautdurchblutung, die Kerntemperatur steigt schneller (Kenney; Meade et
-            al. 2023). CDC stuft Menschen ab 65 Jahren als Risikogruppe ein.
+            Hautdurchblutung, die kritischen Umweltgrenzen liegen niedriger (Kenney;
+            Meade et al. 2023). CDC stuft Menschen ab 65 Jahren als Risikogruppe ein.
             Fitnesstragende, akklimatisierte Masters-Athleten können trotzdem ähnlich
             gut regulieren – das Alter allein erklärt nicht alles. Kein Verband nennt
             einen °C-Abzug; der Betrag ist gesetzt, nicht abgeleitet.
+          </li>
+          <li>
+            <strong>Leistungsstufe (−2&nbsp;°C Breitensport, 0&nbsp;°C Professionell / Akklimatisiert):</strong>
+            {" "}
+            FIFA, ITF, UCI und World Athletics formulieren ihre Schwellen für den
+            Profibetrieb. Der ACSM Position Stand (Armstrong et al. 2007, Tabelle 2)
+            setzt dieselben Maßnahmen für nicht akklimatisierte, weniger fitte Personen
+            rund 2&nbsp;°C früher an – Abbruch bei 30,1 statt 32,3&nbsp;°C. Daraus kommt
+            der Abzug, kein Verbandswert. Nur bei 16–64 Jahren wählbar; unter 16 und 65+
+            bleibt das Feld auf Breitensport.
           </li>
         </ul>
 
@@ -197,23 +207,12 @@ export default function HintergrundPage() {
             validiert – eine Analogie, keine Übernahme.
           </li>
           <li>
-            <strong>Leistungsstufe (−2&nbsp;°C Breitensport, 0&nbsp;°C Professionell / Akklimatisiert):</strong>
-            {" "}
-            der tatsächlich belegte Unterschied ist Akklimatisierung. Profis im
-            Turnierbetrieb sind hitzeangepasst, ein Kreisliga-Kader im ersten warmen
-            Mai-Training nicht. Der Abstand ist eine grobe Analogie, kein Verbandswert.
-            Nur bei 16–64 Jahren wählbar; unter 16 und 65+ bleibt das Feld auf
-            Breitensport.
-          </li>
-          <li>
-            <strong>Unter 16 Jahren (extra −1&nbsp;°C):</strong> Vorsicht trotz
-            schwacher Physiologie-Lage. Die These, Kinder seien grundsätzlich
-            hitzeempfindlicher, gilt in der Sportmedizin als überholt (Rowland 2008,
-            Falk &amp; Dotan 2008); bei ausreichender Flüssigkeitszufuhr regulieren sie
-            ihre Temperatur ähnlich gut. Der ACSM Position Stand 2007 sagt selbst, die
-            Datenlage stütze das nicht, es sei aber vernünftig, Kinder als Risikogruppe
-            zu behandeln. Genau dieser Linie folgen wir – der Abzug bleibt klein.
-            Zwei solche Offsets addiert ergeben keine doppelte Sicherheit.
+            <strong>Unter 16 Jahren (extra −1&nbsp;°C):</strong> Vorsicht, keine
+            Physiologie. Die American Academy of Pediatrics (2011, bestätigt 2019) und
+            Notley et al. (BJSM 2025) zeigen vergleichbare Kerntemperaturen bei Kindern
+            und Erwachsenen, sofern Flüssigkeit verfügbar ist. Der ACSM führt Kinder
+            trotzdem als Risikogruppe – Aufsicht und Belastungsteuerung im Verein. Der
+            Abzug bleibt deshalb klein.
           </li>
           <li>
             <strong>Bewässerung (−0,5&nbsp;°C):</strong> der schwächste Wert im ganzen

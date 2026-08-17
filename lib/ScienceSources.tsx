@@ -48,6 +48,7 @@ export function thresholdSourceIds(sport: Sport): SourceId[] {
   if (usesProfiThresholds(sport)) {
     ids.push("acsm_general");
     ids.push("aging_heat");
+    ids.push("notley_2025_youth");
   }
   ids.push("acgih_tlv");
   return uniqueIds(ids);

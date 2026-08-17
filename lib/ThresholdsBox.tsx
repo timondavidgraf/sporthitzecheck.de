@@ -3,17 +3,18 @@
 import { useState } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import {
-  ageGroupHint,
+  ageGroupTooltip,
   ageOptionsForSport,
-  intensityHint,
   intensityOffsetLabel,
   intensityOptionsForSport,
+  intensityTooltip,
   labelFor,
   PERFORMANCE_OPTIONS,
-  performanceHint,
   performanceOffsetLabel,
+  performanceTooltip,
   shortLabelFor,
   SPORT_OPTIONS,
+  type OffsetTooltipContent,
 } from "@/lib/formOptions";
 import {
   SPORTS,
@@ -22,6 +23,7 @@ import {
   baseBoundsForSport,
   formatOffset,
   sportConfidence,
+  thresholdSourceShort,
   usesProfiThresholds,
   type AlternativeThresholds,
   type IntensityLevel,
@@ -52,14 +54,6 @@ const THRESHOLD_STEPS: { code: ColorCode; label: string }[] = [
   { code: "orange", label: "Orange" },
   { code: "red", label: "Rot" },
 ];
-
-function thresholdSourceShort(sport: Sport): string {
-  if (!usesProfiThresholds(sport)) return "ACSM";
-  const organisation = sourcesRegistry[SPORTS[sport].thresholds.sourceId].organisation;
-  if (organisation === "International Tennis Federation") return "ITF";
-  if (organisation === "Union Cycliste Internationale") return "UCI";
-  return organisation ?? "Verband";
-}
 
 function rangeLabel(
   code: ColorCode,
@@ -100,7 +94,6 @@ export function ThresholdsBox({
   const suspensionAt = config.thresholds.suspensionAt;
   const intensityOptions = intensityOptionsForSport(sport);
   const ageOptions = ageOptionsForSport(sport);
-  const ageSourceId = ageGroup === "senior" ? "aging_heat" : "acsm_general";
 
   const contextTags = [
     shortLabelFor(SPORT_OPTIONS, sport),
@@ -145,8 +138,7 @@ export function ThresholdsBox({
           Altersklasse: {labelFor(ageOptions, ageGroup)} → {formatOffset(ageOffset)}
         </span>
         <OffsetHintTip
-          hint={ageGroupHint(sport, ageGroup)}
-          sourceId={usesProfiThresholds(sport) ? ageSourceId : config.thresholds.sourceId}
+          tooltip={ageGroupTooltip(sport, ageGroup)}
           label="Hinweis zur Altersklasse"
         />
       </p>
@@ -156,12 +148,7 @@ export function ThresholdsBox({
           {performanceOffsetLabel(sport, ageGroup, performanceLevel)}
         </span>
         <OffsetHintTip
-          hint={performanceHint(sport, performanceLevel)}
-          sourceId={
-            usesProfiThresholds(sport)
-              ? "acsm_general"
-              : config.thresholds.sourceId
-          }
+          tooltip={performanceTooltip(sport, performanceLevel)}
           label="Hinweis zur Leistungsstufe"
         />
       </p>
@@ -171,8 +158,7 @@ export function ThresholdsBox({
           {intensityOffsetLabel(intensity)}
         </span>
         <OffsetHintTip
-          hint={intensityHint()}
-          sourceId="acgih_tlv"
+          tooltip={intensityTooltip(intensity)}
           label="Hinweis zur Intensität"
         />
       </p>
@@ -247,9 +233,6 @@ function OfficialThresholdsTip({ sport }: { sport: Sport }) {
   const sourceId = SPORTS[sport].thresholds.sourceId;
   const source = sourcesRegistry[sourceId];
   const short = thresholdSourceShort(sport);
-  const intro = usesProfiThresholds(sport)
-    ? `Unveränderte ${short}-Schwellen:`
-    : "ACSM-Schwellen, kein Verbandswert:";
 
   return (
     <span
@@ -272,21 +255,20 @@ function OfficialThresholdsTip({ sport }: { sport: Sport }) {
       {open && (
         <span
           role="tooltip"
-          className="absolute top-full left-0 z-30 mt-1 w-56 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
+          className="absolute top-full left-0 z-30 mt-1 w-72 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
         >
-          <span className="block">{intro}</span>
+          <span className="block">
+            {usesProfiThresholds(sport)
+              ? `Unveränderte ${short}-Schwellen für den Profi-/Wettkampfbetrieb:`
+              : "ACSM-Studienschwellen, kein Verbandswert:"}
+          </span>
           {THRESHOLD_STEPS.map((step) => (
             <span key={step.code} className="mt-0.5 block tabular-nums">
               {step.label}: {rangeLabel(step.code, base)}
             </span>
           ))}
           <TooltipConfidence level={source.konfidenz} />
-          <a
-            href={sourceHref(sourceId)}
-            className="mt-1.5 block font-semibold text-orange-300 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-200"
-          >
-            Quellen
-          </a>
+          <TooltipSources sourceIds={[sourceId]} />
         </span>
       )}
     </span>
@@ -294,16 +276,13 @@ function OfficialThresholdsTip({ sport }: { sport: Sport }) {
 }
 
 function OffsetHintTip({
-  hint,
-  sourceId,
+  tooltip,
   label,
 }: {
-  hint: string;
-  sourceId: SourceId;
+  tooltip: OffsetTooltipContent;
   label: string;
 }) {
   const [open, setOpen] = useState(false);
-  const source = sourcesRegistry[sourceId];
   return (
     <span
       className="relative inline-flex"
@@ -325,16 +304,11 @@ function OffsetHintTip({
       {open && (
         <span
           role="tooltip"
-          className="absolute top-full left-0 z-30 mt-1 w-64 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
+          className="absolute top-full left-0 z-30 mt-1 w-72 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
         >
-          {hint}
-          <TooltipConfidence level={source.konfidenz} />
-          <a
-            href={sourceHref(sourceId)}
-            className="mt-1.5 block font-semibold text-orange-300 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-200"
-          >
-            Quellen
-          </a>
+          {tooltip.body}
+          <TooltipConfidence level={tooltip.confidence} />
+          <TooltipSources sourceIds={tooltip.sourceIds} />
         </span>
       )}
     </span>
@@ -344,6 +318,26 @@ function OffsetHintTip({
 function TooltipConfidence({ level }: { level: SourceConfidence }) {
   return (
     <span className="mt-1.5 block text-white/75">Konfidenz: {level}</span>
+  );
+}
+
+function TooltipSources({ sourceIds }: { sourceIds: SourceId[] }) {
+  return (
+    <span className="mt-1.5 block">
+      <span className="text-white/75">Quellen:</span>
+      {sourceIds.map((id) => {
+        const source = sourcesRegistry[id];
+        return (
+          <a
+            key={id}
+            href={sourceHref(id)}
+            className="mt-0.5 block font-semibold text-orange-300 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-200"
+          >
+            {source.organisation ?? source.name}
+          </a>
+        );
+      })}
+    </span>
   );
 }
 

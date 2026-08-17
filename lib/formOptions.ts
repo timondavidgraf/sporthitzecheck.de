@@ -11,6 +11,7 @@ import {
   DEFAULT_INTENSITY,
   DEFAULT_PERFORMANCE,
   INTENSITY_LEVELS,
+  PERFORMANCE_OFFSETS,
   SPORT_ORDER,
   SPORTS,
   SURFACE_CATALOG,
@@ -25,6 +26,7 @@ import {
   intensityThresholdOffset,
   performanceThresholdOffset,
   surfaceOffsetDisplay,
+  thresholdSourceShort,
   usesProfiThresholds,
   type IntensityLevel,
   type Sport,
@@ -36,6 +38,7 @@ import {
   type Shadow,
   type Surface,
 } from "./wbgtCalculator";
+import type { SourceConfidence, SourceId } from "./sourcesRegistry";
 
 export type { AgeBand, IntensityLevel, PerformanceLevel, Sport };
 
@@ -223,34 +226,80 @@ export function intensityOffsetLabel(intensity: IntensityLevel): string {
   return formatSignedOffset(intensityThresholdOffset(intensity));
 }
 
-export function ageGroupHint(sport: Sport, ageGroup: AgeBand): string {
+export interface OffsetTooltipContent {
+  body: string;
+  confidence: SourceConfidence;
+  sourceIds: SourceId[];
+}
+
+export function ageGroupTooltip(
+  sport: Sport,
+  ageGroup: AgeBand
+): OffsetTooltipContent {
   if (!usesProfiThresholds(sport)) {
-    return "Fallback-Wert gilt bereits konservativ für alle Altersgruppen.";
+    return {
+      body: "Die ACSM-Skala gilt bereits konservativ für alle Altersgruppen. Es gibt keinen Extra-Abzug nach Alter – die Studienschwellen liegen unter den Profi-Verbandswerten.",
+      confidence: "mittel",
+      sourceIds: [SPORTS[sport].thresholds.sourceId],
+    };
   }
+  const short = thresholdSourceShort(sport);
   if (ageGroup === "youth") {
-    return "Vorsicht trotz schwacher Physiologie-Lage. Kinder sind nicht grundsätzlich hitzeempfindlicher; der ACSM hält die Behandlung als Risikogruppe trotzdem für vernünftig.";
+    return {
+      body: `Zusätzlich ${formatOffset(-1)} zur ${short}-Schwelle. Neuere Studien (AAP 2011/2019, Notley et al. 2025) zeigen: Kinder regulieren bei ausreichender Flüssigkeit ähnlich gut wie Erwachsene. Der kleine Abzug ist Vorsicht wegen Aufsicht und Belastungsteuerung, keine Physiologie. Der ACSM führt Kinder trotzdem als Risikogruppe.`,
+      confidence: "niedrig",
+      sourceIds: ["notley_2025_youth", "acsm_general"],
+    };
   }
   if (ageGroup === "senior") {
-    return "Richtung belegt (Schweißrate, Hautdurchblutung, CDC-Risikogruppe), Betrag gesetzt – kein Verband nennt einen °C-Abzug.";
+    return {
+      body: `Zusätzlich ${formatOffset(-1)} zur ${short}-Schwelle. Richtung belegt: ab etwa 60 Jahren sinken Schweißrate und Hautdurchblutung, die kritischen Umweltgrenzen liegen niedriger (Meade et al. 2023; CDC 65+). Kein Verband nennt einen °C-Wert – der Betrag ist gesetzt, nicht abgeleitet.`,
+      confidence: "mittel",
+      sourceIds: ["aging_heat"],
+    };
   }
-  return "Unter 16 und 65+: jeweils −1,0 °C gegenüber der Verbandsschwelle.";
+  return {
+    body: `Kein Altersabzug: die ${short}-Schwelle gilt für Erwachsene. Unter 16 und 65+ je ${formatOffset(-1)} extra – Jugend als Vorsicht, 65+ weil die Thermoregulation im Alter nachlässt.`,
+    confidence: "hoch",
+    sourceIds: [SPORTS[sport].thresholds.sourceId],
+  };
 }
 
-export function performanceHint(
+export function performanceTooltip(
   sport: Sport,
   performanceLevel: PerformanceLevel
-): string {
+): OffsetTooltipContent {
   if (!usesProfiThresholds(sport)) {
-    return "Fallback-Wert gilt bereits konservativ für alle Leistungsstufen.";
+    return {
+      body: "Die ACSM-Skala gilt bereits für gesunde Erwachsene ohne Verbands-Profi-Schwelle. Zusätzlicher Abzug nach Leistungsstufe: keiner.",
+      confidence: "mittel",
+      sourceIds: [SPORTS[sport].thresholds.sourceId],
+    };
   }
+  const short = thresholdSourceShort(sport);
+  const recOffset = formatOffset(PERFORMANCE_OFFSETS.recreational);
   if (performanceLevel === "elite") {
-    return "Breitensport: −2,0 °C. Nur bei 16–64 Jahren wählbar.";
+    return {
+      body: `Kein Abzug: die ${short}-Werte gelten für den Profi-/Wettkampfbetrieb, also für fitte, meist hitzeakklimatisierte Athlet:innen. Breitensport erhält ${recOffset}.`,
+      confidence: "hoch",
+      sourceIds: [SPORTS[sport].thresholds.sourceId, "acsm_general"],
+    };
   }
-  return "Professionell / Akklimatisiert bleibt bei der Verbandsschwelle. Nur bei 16–64 Jahren wählbar.";
+  return {
+    body: `Die ${short}-Werte gelten für Profis und akklimatisierte Leistungssportler. Der ACSM Position Stand (2007, Tabelle 2) setzt dieselben Maßnahmen für nicht akklimatisierte, weniger fitte Personen rund 2 °C früher an (Abbruch 30,1 vs. 32,3 °C). Abzug daher ${recOffset} gemäß Studienlage – Analogie, kein Verbandswert.`,
+    confidence: "mittel",
+    sourceIds: ["acsm_general", SPORTS[sport].thresholds.sourceId],
+  };
 }
 
-export function intensityHint(): string {
-  return "Näherung nach ACGIH, nicht für Sport validiert. Verschiebt die Ampelschwellen, nicht den WBGT.";
+export function intensityTooltip(intensity: IntensityLevel): OffsetTooltipContent {
+  const modifier = intensityModifier(intensity);
+  const offset = formatSignedOffset(modifier.schwellenOffset);
+  return {
+    body: `${modifier.label} verschiebt die Ampelschwellen um ${offset}. Grundlage: ACGIH-Arbeitsmodell (mehr Pause → höhere zulässige WBGT, durchgehende schwere Arbeit → niedrigere). Nicht für Sport validiert. Verschiebt die Schwellen, nicht den berechneten WBGT.`,
+    confidence: "niedrig",
+    sourceIds: ["acgih_tlv"],
+  };
 }
 
 /**
