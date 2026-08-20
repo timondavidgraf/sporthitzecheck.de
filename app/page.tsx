@@ -277,7 +277,15 @@ type LookupResult =
   | { ok: false; status: string };
 
 async function lookupPlaces(q: string, signal?: AbortSignal): Promise<LookupResult> {
-  const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal });
+  let res: Response;
+  try {
+    res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, { signal });
+  } catch (err) {
+    if (signal?.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+      throw err;
+    }
+    return { ok: false, status: "lookup-failed" };
+  }
 
   // Der Proxy antwortet bei Limit oder Fehler mit passendem HTTP-Status und
   // trotzdem mit JSON – deshalb erst den Body lesen, damit die konkrete

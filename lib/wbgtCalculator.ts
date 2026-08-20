@@ -416,7 +416,18 @@ export async function fetchWeatherData(
   // Gestern mitladen – sonst fehlt der Vortag im Vergleich, wenn die Einheit heute ist
   url.searchParams.set('past_days', '1');
 
-  const response = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
+  } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      throw new Error("Wetterdienst antwortet nicht (Zeitüberschreitung).");
+    }
+    if (err instanceof TypeError) {
+      throw new Error("Wetterdaten konnten nicht geladen werden.");
+    }
+    throw err;
+  }
   if (!response.ok) {
     throw new Error(`Open-Meteo Fehler: ${response.status} ${response.statusText}`);
   }
