@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, Info } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { Tip } from "@/lib/TipPopover";
 import {
   ageGroupTooltip,
   ageOptionsForSport,
@@ -228,50 +228,26 @@ export function ThresholdsBox({
 }
 
 function OfficialThresholdsTip({ sport }: { sport: Sport }) {
-  const [open, setOpen] = useState(false);
   const base = baseBoundsForSport(sport);
   const sourceId = SPORTS[sport].thresholds.sourceId;
   const source = sourcesRegistry[sourceId];
   const short = thresholdSourceShort(sport);
 
   return (
-    <span
-      className="relative inline-flex"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setOpen(false);
-        }
-      }}
-    >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
-      >
-        <Info className="size-3.5" aria-hidden />
-        <span className="sr-only">Verbands- bzw. Studiengrenzwerte</span>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute top-full left-0 z-30 mt-1 w-72 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
-        >
-          <span className="block">
-            {usesProfiThresholds(sport)
-              ? `Unveränderte ${short}-Schwellen für den Profi-/Wettkampfbetrieb:`
-              : "ACSM-Studienschwellen, kein Verbandswert:"}
-          </span>
-          {THRESHOLD_STEPS.map((step) => (
-            <span key={step.code} className="mt-0.5 block tabular-nums">
-              {step.label}: {rangeLabel(step.code, base)}
-            </span>
-          ))}
-          <TooltipConfidence level={source.konfidenz} />
-          <TooltipSources sourceIds={[sourceId]} />
+    <Tip label="Verbands- bzw. Studiengrenzwerte" align="left">
+      <span className="block">
+        {usesProfiThresholds(sport)
+          ? `Unveränderte ${short}-Schwellen für den Profi-/Wettkampfbetrieb:`
+          : "ACSM-Studienschwellen, kein Verbandswert:"}
+      </span>
+      {THRESHOLD_STEPS.map((step) => (
+        <span key={step.code} className="mt-0.5 block tabular-nums">
+          {step.label}: {rangeLabel(step.code, base)}
         </span>
-      )}
-    </span>
+      ))}
+      <TooltipConfidence level={source.konfidenz} />
+      <TooltipSources sourceIds={[sourceId]} />
+    </Tip>
   );
 }
 
@@ -282,36 +258,12 @@ function OffsetHintTip({
   tooltip: OffsetTooltipContent;
   label: string;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <span
-      className="relative inline-flex"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setOpen(false);
-        }
-      }}
-    >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
-      >
-        <Info className="size-3.5" aria-hidden />
-        <span className="sr-only">{label}</span>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute top-full left-0 z-30 mt-1 w-72 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
-        >
-          {tooltip.body}
-          <TooltipConfidence level={tooltip.confidence} />
-          <TooltipSources sourceIds={tooltip.sourceIds} />
-        </span>
-      )}
-    </span>
+    <Tip label={label} align="left">
+      {tooltip.body}
+      <TooltipConfidence level={tooltip.confidence} />
+      <TooltipSources sourceIds={tooltip.sourceIds} />
+    </Tip>
   );
 }
 
@@ -342,28 +294,10 @@ function TooltipSources({ sourceIds }: { sourceIds: SourceId[] }) {
 }
 
 function InterpTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <span className="relative inline-flex">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        onBlur={() => setOpen(false)}
-        className="inline-flex size-4 items-center justify-center rounded-full text-slate-400 hover:text-slate-600"
-      >
-        <Info className="size-3.5" aria-hidden />
-        <span className="sr-only">Hinweis zur Stufe</span>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute top-full left-0 z-30 mt-1 w-56 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
-        >
-          {text}
-        </span>
-      )}
-    </span>
+    <Tip label="Hinweis zur Stufe" align="left">
+      {text}
+    </Tip>
   );
 }
 

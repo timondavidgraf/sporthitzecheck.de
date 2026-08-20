@@ -672,7 +672,7 @@ export default function HomePage() {
       <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="flex items-center gap-2 text-sm font-bold text-slate-900">
           <Info className="size-4 text-orange-500" aria-hidden />
-          Warum nicht der Wetterbericht?
+          Temperatur ≠ Hitzebelastung
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
           Die Lufttemperatur sagt nicht, wie belastend Training oder Spiel wirklich

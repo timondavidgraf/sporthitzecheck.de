@@ -20,7 +20,6 @@ import {
   Check,
   ChevronDown,
   Droplets,
-  Info,
   Loader2,
   MapPin,
   RotateCcw,
@@ -65,6 +64,7 @@ import {
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
 import { ThresholdsBox } from "@/lib/ThresholdsBox";
 import { ScienceSources, SourceInfoButton } from "@/lib/ScienceSources";
+import { Tip } from "@/lib/TipPopover";
 import {
   ageThresholdOffset,
   baseBoundsForSport,
@@ -1093,65 +1093,29 @@ function AmpelBox({
 }
 
 function VerlaufInfoTip({ sessionLabel }: { sessionLabel: string }) {
-  const [open, setOpen] = useState(false);
   return (
-    <span
-      className="relative inline-flex"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setOpen(false);
-        }
-      }}
+    <Tip
+      label="Hinweis zum Verlauf"
+      buttonClassName="inline-flex size-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
     >
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="inline-flex size-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-      >
-        <Info className="size-3.5" aria-hidden />
-        <span className="sr-only">Hinweis zum Verlauf</span>
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="absolute top-full right-0 z-30 mt-1 w-64 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
-        >
-          Der Rahmen markiert den Zeitraum der Einheit ({sessionLabel} Uhr). Blasse
-          Balken = {CONTEXT_HOURS} Stunden davor und danach.
-        </span>
-      )}
-    </span>
+      Der Rahmen markiert den Zeitraum der Einheit ({sessionLabel} Uhr). Blasse
+      Balken = {CONTEXT_HOURS} Stunden davor und danach.
+    </Tip>
   );
 }
 
 function WbgtInfoTip() {
-  const [open, setOpen] = useState(false);
-
   return (
-    <span className="relative inline-flex self-center">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="wbgt-tip"
-        onClick={() => setOpen((value) => !value)}
-        onBlur={() => setOpen(false)}
-        className="inline-flex size-5 items-center justify-center rounded-full bg-white/25 text-current transition hover:bg-white/40"
-      >
-        <Info className="size-3.5" strokeWidth={2.5} aria-hidden />
-        <span className="sr-only">Was ist WBGT?</span>
-      </button>
-      {open && (
-        <span
-          id="wbgt-tip"
-          role="tooltip"
-          className="absolute top-full left-0 z-30 mt-2 w-72 rounded-lg bg-slate-900 p-3 text-left text-xs leading-relaxed font-medium text-white shadow-lg"
-        >
-          <span className="block">{WBGT_EXPLAINER}</span>
-          <span className="mt-2 block">{WBGT_CALCULATED_NOTE}</span>
-        </span>
-      )}
-    </span>
+    <Tip
+      label="Was ist WBGT?"
+      align="left"
+      className="self-center"
+      buttonClassName="inline-flex size-5 items-center justify-center rounded-full bg-white/25 text-current transition hover:bg-white/40"
+      iconStrokeWidth={2.5}
+    >
+      <span className="block">{WBGT_EXPLAINER}</span>
+      <span className="mt-2 block">{WBGT_CALCULATED_NOTE}</span>
+    </Tip>
   );
 }
 

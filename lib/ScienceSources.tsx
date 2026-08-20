@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, ExternalLink, Info } from "lucide-react";
+import { Tip } from "@/lib/TipPopover";
 import { labelFor, SPORT_OPTIONS } from "@/lib/formOptions";
 import {
   getSurfaceConfig,
@@ -67,7 +68,6 @@ export function SourceInfoButton({
   variant?: "tooltip" | "anchor";
 }) {
   const source = sourcesRegistry[sourceId];
-  const [open, setOpen] = useState(false);
   const className =
     "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600";
 
@@ -86,31 +86,10 @@ export function SourceInfoButton({
   }
 
   return (
-    <span className="relative inline-flex">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-label={`Quelle: ${source.name}`}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          setOpen((value) => !value);
-        }}
-        onBlur={() => setOpen(false)}
-        className={className}
-      >
-        <Info className="size-3.5" aria-hidden />
-      </button>
-      {open ? (
-        <span
-          role="tooltip"
-          className="absolute top-full right-0 z-30 mt-1 w-64 rounded-lg bg-slate-900 p-2.5 text-left text-[11px] leading-relaxed font-medium text-white shadow-lg"
-        >
-          <span className="block font-semibold">{source.name}</span>
-          {source.kernaussage}
-        </span>
-      ) : null}
-    </span>
+    <Tip label={`Quelle: ${source.name}`} buttonClassName={className}>
+      <span className="block font-semibold">{source.name}</span>
+      {source.kernaussage}
+    </Tip>
   );
 }
 
