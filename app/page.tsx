@@ -299,10 +299,50 @@ async function lookupPlaces(q: string, signal?: AbortSignal): Promise<LookupResu
   return { ok: true, results: data.results };
 }
 
+function isStartStamp(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value);
+}
+
+function isClock(value: unknown): value is string {
+  return typeof value === "string" && /^\d{2}:\d{2}$/.test(value);
+}
+
+/**
+ * Gespeicherte Uhrzeit und Dauer behalten. Nur das Datum rücken wir nach vorn,
+ * wenn es in der Vergangenheit liegt – rückwärts gibt es keine Vorhersage.
+ */
+function restoredSchedule(
+  saved: Pick<FormState, "startTime" | "endTime" | "sport" | "intensity">
+): Pick<FormState, "startTime" | "endTime"> {
+  const now = roundDateToQuarter(new Date());
+  const fallbackDuration = durationForIntensity(saved.sport, saved.intensity);
+  const savedDuration = durationMinutes(saved.startTime, saved.endTime);
+  const duration = savedDuration > 0 ? savedDuration : fallbackDuration;
+
+  if (!isStartStamp(saved.startTime)) {
+    return {
+      startTime: toInputValue(now),
+      endTime: addMinutesSameDay(now, duration),
+    };
+  }
+
+  let date = startDatePart(saved.startTime);
+  const today = toDateValue(now);
+  const latest = maxStartDate();
+  if (date < today) date = today;
+  if (date > latest) date = latest;
+
+  const clock = startClockPart(saved.startTime) || toTimeValue(now);
+  const startTime = `${date}T${clock}`;
+  return {
+    startTime,
+    endTime: addMinutesSameDay(new Date(startTime), duration),
+  };
+}
+
 /**
  * Nimmt nur bekannte Werte aus dem localStorage an, damit alte Einträge nichts
- * kaputt machen. Der Startzeitpunkt wird bewusst NICHT übernommen – ein
- * gespeicherter Zeitpunkt läge beim nächsten Besuch in der Vergangenheit.
+ * kaputt machen.
  */
 function sanitize(raw: unknown): FormState {
   if (typeof raw !== "object" || raw === null) return DEFAULT_FORM;
@@ -321,8 +361,8 @@ function sanitize(raw: unknown): FormState {
     surface: parseSurface(v.surface, sport),
     shadow: parseOption(v.shadow, SHADOW_OPTIONS, DEFAULT_FORM.shadow),
     watered: typeof v.watered === "boolean" ? v.watered : DEFAULT_FORM.watered,
-    startTime: "",
-    endTime: "",
+    startTime: isStartStamp(v.startTime) ? v.startTime : "",
+    endTime: isClock(v.endTime) ? v.endTime : "",
     locationLabel:
       typeof v.locationLabel === "string"
         ? v.locationLabel.replace(/^Aktueller Standort \(/, "Standort (")
@@ -351,10 +391,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const addressInputRef = useRef<HTMLInputElement>(null);
 
-  // Beim Mount: letzte Eingaben wiederherstellen und Startzeit auf jetzt setzen.
-  // Bewusst im Effect und nicht als useState-Initializer – der Server kennt
-  // weder localStorage noch die lokale Uhrzeit, ein direkter Initialwert würde
-  // zu einem Hydration-Mismatch führen.
+  // Beim Mount: letzte Eingaben wiederherstellen. Bewusst im Effect – der
+  // Server kennt weder localStorage noch die lokale Uhrzeit.
   useEffect(() => {
     let restored = DEFAULT_FORM;
     try {
@@ -364,16 +402,10 @@ export default function HomePage() {
       // Defekter Eintrag oder Storage gesperrt – Defaults bleiben stehen
     }
 
-    const start = roundDateToQuarter(new Date());
-
     // eslint-disable-next-line react-hooks/set-state-in-effect -- einmaliges Nachladen nach der Hydration
     setForm({
       ...restored,
-      startTime: toInputValue(start),
-      endTime: addMinutesSameDay(
-        start,
-        durationForIntensity(restored.sport, restored.intensity)
-      ),
+      ...restoredSchedule(restored),
     });
     setHydrated(true);
   }, []);
@@ -460,20 +492,8 @@ export default function HomePage() {
         : prev.performanceLevel,
     }));
 
-  /** Intensität wechseln – Standarddauer der neuen Stufe übernehmen. */
   const changeIntensity = (intensity: IntensityLevel) =>
-    setForm((prev) => {
-      const start = new Date(prev.startTime);
-      if (Number.isNaN(start.getTime())) return { ...prev, intensity };
-      return {
-        ...prev,
-        intensity,
-        endTime: addMinutesSameDay(
-          start,
-          durationForIntensity(prev.sport, intensity)
-        ),
-      };
-    });
+    setForm((prev) => ({ ...prev, intensity }));
 
   // --- Geolocation ---------------------------------------------------------
 
