@@ -245,9 +245,9 @@ export const CONTEXT_HOURS = 5;
 
 /**
  * Obergrenze fuer die Balkenzahl: 5 Kontextstunden je Seite plus die
- * maximale Einheitsdauer von 6 Stunden.
+ * maximale Einheitsdauer von 8 Stunden.
  */
-export const MAX_DISPLAY_HOURS = 16;
+export const MAX_DISPLAY_HOURS = CONTEXT_HOURS * 2 + 8;
 
 /** Open-Meteo liefert maximal 16 Tage Vorhersage. */
 const MAX_FORECAST_DAYS = 16;

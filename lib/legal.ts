@@ -12,7 +12,7 @@ export const SITE_URL = (
 ).replace(/\/$/, "");
 
 /** Einzige Kontaktadresse für Feedback, Fehler und Impressum. */
-export const CONTACT_EMAIL = "team@entfaltungszone.de";
+export const CONTACT_EMAIL = "kontakt@sporthitzecheck.de";
 export const LINKEDIN_URL = "https://www.linkedin.com/in/timon-graf-503bb4186/";
 
 /** Kurztext für den (i)-Tooltip neben der WBGT-Angabe. */

@@ -5,7 +5,7 @@ import { CONTACT_EMAIL, LEGAL_OPERATOR } from "@/lib/legal";
 export const metadata: Metadata = {
   title: "Datenschutz",
   description:
-    "Datenschutzerklärung zu SportHitzeCheck, Google Places, Vercel Analytics und Sentry.",
+    "Datenschutzerklärung zu SportHitzeCheck, Google Places, Vercel Analytics, Sentry und E-Mail-Kontakt.",
   alternates: { canonical: "/datenschutz" },
   openGraph: {
     title: "Datenschutz – SportHitzeCheck",
@@ -32,8 +32,15 @@ export default function DatenschutzPage() {
           {LEGAL_OPERATOR.street}
           {"\n"}
           {LEGAL_OPERATOR.zipCity}
-          {"\n"}
-          E-Mail: {LEGAL_OPERATOR.email}
+        </p>
+        <p>
+          E-Mail:{" "}
+          <a
+            href={`mailto:${LEGAL_OPERATOR.email}`}
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            {LEGAL_OPERATOR.email}
+          </a>
         </p>
       </section>
 
@@ -190,7 +197,48 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">10. Speicherdauer</h2>
+        <h2 className="text-base font-bold text-slate-900">
+          10. Kontaktaufnahme per E-Mail und E-Mail-Weiterleitung
+        </h2>
+        <p className="mt-1.5">
+          Wenn Sie uns per E-Mail kontaktieren, werden Ihre Angaben inklusive der
+          von Ihnen angegebenen Kontaktdaten zwecks Bearbeitung der Anfrage und
+          für den Fall von Anschlussfragen bei uns verarbeitet (Rechtsgrundlage:
+          Art. 6 Abs. 1 lit. b bzw. lit. f DSGVO).
+        </p>
+        <p>
+          Für den Empfang und die Weiterleitung eingehender E-Mails an unsere
+          Domain nutzen wir den Open-Source-Dienst{" "}
+          <a
+            href="https://forwardemail.net/en/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            Forward Email
+          </a>{" "}
+          (Forward Email LLC, USA). Die Verarbeitung erfolgt temporär im
+          Arbeitsspeicher (In-Memory) ohne dauerhafte Protokollierung oder
+          Speicherung der E-Mail-Inhalte auf den Weiterleitungsservern. Mit dem
+          Anbieter besteht eine Vereinbarung zur Auftragsverarbeitung (Data
+          Processing Agreement, DPA) auf Grundlage der EU-Standardvertragsklauseln
+          (SCC). Die eigentliche Speicherung und Bearbeitung Ihrer E-Mail erfolgt
+          anschließend in unserem Postfach bei{" "}
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
+          >
+            Google
+          </a>{" "}
+          (Gmail / Google LLC, USA), zertifiziert unter dem EU-U.S. Data Privacy
+          Framework.
+        </p>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-slate-900">11. Speicherdauer</h2>
         <p className="mt-1.5">
           Server-Logs werden vom Hoster üblicherweise kurzfristig vorgehalten.
           Analytics- und Fehlerdaten werden nur so lange gespeichert, wie es für
@@ -200,7 +248,7 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">11. Ihre Rechte</h2>
+        <h2 className="text-base font-bold text-slate-900">12. Ihre Rechte</h2>
         <p className="mt-1.5">
           Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
           der Verarbeitung, Datenübertragbarkeit und Widerspruch gegen

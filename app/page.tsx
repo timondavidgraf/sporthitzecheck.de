@@ -101,8 +101,8 @@ const STORAGE_KEY = "sporthitzecheck_form";
 /** Vorhersage nur für die nächsten 7 Tage – danach nur noch unsichere Trends. */
 const MAX_DAYS_AHEAD = 7;
 
-/** Laenger als das ist keine Trainingseinheit mehr – und das Diagramm unlesbar. */
-const MAX_DURATION_MIN = 6 * 60;
+/** Lange Einheiten (z. B. Radtouren) bis 8 Stunden; das Diagramm bleibt lesbar. */
+const MAX_DURATION_MIN = 8 * 60;
 
 /** Zeiten nur in 15-Minuten-Schritten – stündliche Wetterdaten machen genauer sinnlos. */
 const QUARTER_MIN = 15;
