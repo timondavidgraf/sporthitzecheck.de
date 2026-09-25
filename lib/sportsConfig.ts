@@ -6,7 +6,13 @@
  * sind dann UI-Interpolation, keine offizielle Verbandszahl.
  */
 
-import type { AgeBand, ColorCode, PerformanceLevel, Surface } from "./wbgtCalculator";
+import type {
+  AgeBand,
+  ColorCode,
+  EventType,
+  PerformanceLevel,
+  Surface,
+} from "./wbgtCalculator";
 import {
   sourcesRegistry,
   type SourceConfidence,
@@ -55,12 +61,7 @@ export interface SurfaceMeta {
   image?: string;
 }
 
-export type SurfaceConfidence =
-  | "hoch"
-  | "mittel"
-  | "niedrig"
-  | "nicht_zutreffend"
-  | "unbestätigt";
+export type SurfaceConfidence = "hoch" | "mittel" | "niedrig" | "nicht_zutreffend";
 
 export interface UntergrundConfig {
   name: string;
@@ -73,8 +74,9 @@ export interface UntergrundConfig {
    * Einordnung: Diese Studie fand KEINE signifikanten Unterschiede zwischen den
    * Sportbelägen selbst – belegt ist „Platz wärmer als Wetterstation“, nicht
    * „Belag X wärmer als Belag Y“. Die Offsets sind daher als Vor-Ort-Zuschlag
-   * für stark aufheizende, versiegelte Beläge zu lesen, nicht als validierte
-   * Rangfolge. Bewusst vorsichtig nach oben gesetzt.
+   * zu lesen, nicht als validierte Rangfolge – und stehen nur bei den
+   * Belagstypen, die Pryor tatsächlich gemessen hat (Hardcourt, Kunststoffbahn,
+   * Sand). Nicht gemessene Beläge bekommen einen Warnhinweis statt einer Zahl.
    */
   wbgtOffset: number | null;
   offsetRange?: [number, number];
@@ -85,7 +87,6 @@ export interface UntergrundConfig {
   /** Warum bewusst kein Zahlen-Offset gesetzt ist – Dokumentation, nicht UI. */
   kein_offset_grund?: string;
   quelle_id: SourceId;
-  status?: "pending_research";
 }
 
 export interface SportDefinition {
@@ -100,7 +101,11 @@ export interface SportDefinition {
 }
 
 /**
- * Altersabzug von der Verbandsschwelle. Nur wenn `profi` gesetzt ist.
+ * Altersabzug von der Ampelschwelle.
+ *
+ * Bei Verbandsschwellen (`profi`) gelten beide Werte. Bei der ACSM-Skala nur
+ * 65+: Für Kinder gibt es dort keine Profi-Schwelle anzupassen, und die
+ * Physiologie verlangt keinen Abzug (siehe unten).
  *
  * Jugend: −1 °C als Vorsicht, nicht als Physiologie. AAP (2011, 2019) und
  * Notley et al. (BJSM 2025) zeigen vergleichbare Kerntemperaturen bei Kindern
@@ -213,10 +218,7 @@ export const INTENSITY_LEVELS: readonly IntensityModifier[] = [
 
 export const DEFAULT_INTENSITY: IntensityLevel = "normal";
 
-export function intensityModifier(
-  level: IntensityLevel,
-  _sport?: Sport
-): IntensityModifier {
+export function intensityModifier(level: IntensityLevel): IntensityModifier {
   return INTENSITY_LEVELS.find((item) => item.id === level) ?? INTENSITY_LEVELS[1];
 }
 
@@ -225,20 +227,19 @@ export function intensityThresholdOffset(level: IntensityLevel): number {
 }
 
 /** Anzeigename der Intensität, z. B. „Wettkampf / Pflichtspiel“. */
-export function intensityHeadline(level: IntensityLevel, sport?: Sport): string {
-  return intensityModifier(level, sport).label;
+export function intensityHeadline(level: IntensityLevel): string {
+  return intensityModifier(level).label;
 }
 
-/** Handlungsempfehlung: Training vs. Spiel/Wettkampf, aus der Intensität. */
-export function eventTypeFromIntensity(
-  sport: Sport,
-  level: IntensityLevel
-): "training" | "match" | "tournament" {
-  if (intensityFamily(sport) === "match") {
-    if (level === "easy") return "training";
-    return "match";
-  }
-  return level === "intense" ? "match" : "training";
+/**
+ * Handlungsempfehlung: Training, Spiel/Wettkampf oder gemischt, aus der
+ * Intensität. „Intensives Training / Freundschaftsspiel“ ist bei
+ * Mannschaftssportarten beides und wird deshalb neutral formuliert.
+ */
+export function eventTypeFromIntensity(sport: Sport, level: IntensityLevel): EventType {
+  if (level === "intense") return "match";
+  if (intensityFamily(sport) === "match" && level === "normal") return "mixed";
+  return "training";
 }
 
 export function durationForIntensity(sport: Sport, level: IntensityLevel): number {
@@ -259,18 +260,6 @@ export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
     short: "Kunstrasen",
     swatch: "bg-gray-800",
     image: "/surfaces/turf_black.png",
-  },
-  turf_light: {
-    label: "Kunstrasen Kork / Natur-Infill",
-    short: "Kunstrasen Kork",
-    swatch: "bg-amber-700",
-    image: "/surfaces/turf_light.png",
-  },
-  turf_epdm: {
-    label: "Kunstrasen EPDM / grün",
-    short: "Kunstrasen EPDM",
-    swatch: "bg-green-700",
-    image: "/surfaces/turf_light.png",
   },
   sand_clay: {
     label: "Hartplatz / Asche",
@@ -325,12 +314,6 @@ export const SURFACE_CATALOG: Record<Surface, SurfaceMeta> = {
     swatch: "bg-sky-500",
     image: "/surfaces/hockey_water.png",
   },
-  turf_sand: {
-    label: "Kunstrasen sandverfüllt",
-    short: "Kunstrasen Sand",
-    swatch: "bg-lime-700",
-    image: "/surfaces/turf_black.png",
-  },
 };
 
 const KUNSTRASEN_WARNING =
@@ -384,7 +367,6 @@ function pendingNatural(name: string): UntergrundConfig {
     wbgtOffset: 0,
     konfidenz: "niedrig",
     quelle_id: "pending",
-    status: "pending_research",
   };
 }
 
@@ -403,16 +385,13 @@ export const SPORTS: Record<Sport, SportDefinition> = {
           "Naturrasen transpiriert: mehr bodennahe Feuchte, weniger extreme Oberflächentemperatur. Der WBGT in Brusthöhe liegt oft nah am Kunstrasen, weil dort die höhere Strahlung durch trockenere Luft ausgeglichen wird – das Gefühl ist Schwüle statt trockener Backofen-Hitze.",
       },
       turf_black: footballTurf("Kunstrasen"),
-      turf_epdm: footballTurf("Kunstrasen"),
-      turf_sand: footballTurf("Kunstrasen"),
-      turf_light: footballTurf("Kunstrasen"),
       sand_clay: {
         name: "Hartplatz / Asche",
         wbgtOffset: null,
         konfidenz: "niedrig",
-        quelle_id: "grundstein_cooper_2020",
+        quelle_id: "tennis_surfaces_2024",
         hazardWarning:
-          "Für Hartplatz/Asche gibt es keine WBGT-Belagstudie. Die Oberfläche kann sich stark aufheizen – deshalb nur ein Warnhinweis, kein Zahlenzuschlag.",
+          "Für Asche gibt es nur eine vergleichbare Messung (Tennisplatz aus Granitboden, Japan 2024): nur bei extremer Hitze und mittags leicht wärmer als die Wetterstation. Die Oberfläche kann sich trotzdem stark aufheizen – deshalb ein Warnhinweis, kein Zahlenzuschlag.",
       },
     },
     thresholds: {
@@ -449,12 +428,11 @@ export const SPORTS: Record<Sport, SportDefinition> = {
       },
       clay_red_dry: {
         name: "Sandplatz (trocken)",
-        wbgtOffset: 1.0,
-        offsetRange: [0, 2],
-        konfidenz: "mittel",
-        quelle_id: "pryor_2017",
+        wbgtOffset: null,
+        konfidenz: "niedrig",
+        quelle_id: "tennis_surfaces_2024",
         hazardWarning:
-          "Feldstudie: Sand/Asche teils heißer als Hardcourt – Rangfolge nicht eindeutig.",
+          "Ziegelmehl wurde nie direkt gemessen. Ein vergleichbarer Platz aus Granitboden (Japan 2024) war nur bei extremer Hitze und mittags leicht wärmer als die Wetterstation (+0,6 °C) – deshalb ein Warnhinweis, kein Zahlenzuschlag. Wässern senkt die Oberflächentemperatur.",
       },
       hardcourt: {
         name: "Hardcourt / Acryl",
@@ -577,7 +555,6 @@ export const SPORTS: Record<Sport, SportDefinition> = {
           "Bewässerter Kunstrasen liegt in der Oberflächentemperatur nah am Naturrasen. Kein WBGT-Zuschlag; Quelle misst Oberfläche, nicht WBGT.",
       },
       turf_black: footballTurf("Kunstrasen"),
-      turf_sand: footballTurf("Kunstrasen"),
     },
     thresholds: {
       profi: null,
@@ -611,19 +588,8 @@ export function usesProfiThresholds(sport: Sport): boolean {
   return SPORTS[sport].thresholds.profi !== null;
 }
 
-/** Alte Kunstrasen-Varianten (SBR, EPDM, Sand, Kork) → ein Eintrag. */
-const TURF_ALIASES: ReadonlySet<string> = new Set([
-  "turf_light",
-  "turf_epdm",
-  "turf_sand",
-]);
-
-export function canonicalSurface(surface: string): string {
-  return TURF_ALIASES.has(surface) ? "turf_black" : surface;
-}
-
-export function isSyntheticTurf(surface: string): boolean {
-  return canonicalSurface(surface) === "turf_black";
+export function isSyntheticTurf(surface: Surface): boolean {
+  return surface === "turf_black";
 }
 
 /** Kurzname der Schwellenquelle in der UI: FIFA, ITF, UCI, ACSM. */
@@ -645,7 +611,7 @@ export function baseBoundsForSport(sport: Sport): AmpelBounds {
 }
 
 export function ageThresholdOffset(sport: Sport, ageGroup: AgeBand): number {
-  if (!usesProfiThresholds(sport)) return 0;
+  if (!usesProfiThresholds(sport) && ageGroup !== "senior") return 0;
   return AGE_BAND_OFFSETS[ageGroup];
 }
 
@@ -726,7 +692,6 @@ export function getSurfaceConfig(sport: Sport, surface: Surface): UntergrundConf
     wbgtOffset: 0,
     konfidenz: "niedrig",
     quelle_id: "pending",
-    status: "pending_research",
   };
 }
 
@@ -739,16 +704,11 @@ export function hasNumericSurfaceOffset(sport: Sport, surface: Surface): boolean
   return getSurfaceConfig(sport, surface).wbgtOffset != null;
 }
 
-export function showsSurfaceSourceInfo(konfidenz: SurfaceConfidence): boolean {
-  return konfidenz === "niedrig" || konfidenz === "nicht_zutreffend";
-}
-
 const SURFACE_CONFIDENCE_LABEL: Record<SurfaceConfidence, string> = {
   hoch: "hohe Konfidenz",
   mittel: "mittlere Konfidenz",
   niedrig: "niedrige Konfidenz",
   nicht_zutreffend: "Konfidenz nicht zutreffend",
-  unbestätigt: "unbestätigte Konfidenz",
 };
 
 const SURFACE_CONFIDENCE_SHORT: Record<SurfaceConfidence, string> = {
@@ -756,7 +716,6 @@ const SURFACE_CONFIDENCE_SHORT: Record<SurfaceConfidence, string> = {
   mittel: "mittel",
   niedrig: "niedrig",
   nicht_zutreffend: "n. z.",
-  unbestätigt: "unbestätigt",
 };
 
 /** Anzeige in der Auswahlliste; null = Warn-Icon statt Zahl. Immer mit Konfidenz. */

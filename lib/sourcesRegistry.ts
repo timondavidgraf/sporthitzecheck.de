@@ -23,6 +23,7 @@ export type SourceId =
   | "fih_air_temp"
   | "grundstein_cooper_2020"
   | "pryor_2017"
+  | "tennis_surfaces_2024"
   | "acgih_tlv"
   | "john_2024_canopy"
   | "irrigation_studies_turf"
@@ -114,7 +115,7 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Achtstufige WBGT-Tabelle für gesunde Erwachsene. Ab 18,4 °C steigt das Risiko für Vorbelastete, ab 22,3 °C für alle, ab 25,7 °C deutlich für Unfitte und Nichtakklimatisierte; ab 27,9 °C empfiehlt der Standard, Ausdauerwettkämpfe abzusagen oder zu verlegen.",
     konfidenz: "hoch",
     einschraenkung:
-      "Tabelle 2 unterscheidet zwei Spalten: nicht akklimatisierte, weniger fitte Personen vs. akklimatisierte, fitte. Dieselben Maßnahmen (intensives Training begrenzen, abbrechen) liegen rund 2 °C auseinander – z. B. Abbruch 30,1 vs. 32,3 °C. Daraus kommt der Leistungsabzug der App (−2,0 °C), kein FIFA-/ITF-Wert. Für Kinder nennt der Standard eine eigene Tabelle mit Abbruch über 29 °C; das stützt keinen großen Alters-Offset. Ältere Erwachsene behandelt die App getrennt (Quelle zu Hitzestress im Alter).",
+      "Tabelle 2 unterscheidet zwei Spalten: nicht akklimatisierte, weniger fitte Personen vs. akklimatisierte, fitte. Dieselben Maßnahmen (intensives Training begrenzen, abbrechen) liegen rund 2 °C auseinander – z. B. Abbruch 30,1 vs. 32,3 °C. Daraus kommt der Leistungsabzug der App (−2,0 °C), kein FIFA-/ITF-Wert. Für Kinder nennt der Standard eine eigene Tabelle mit Abbruch über 29 °C; das stützt keinen großen Alters-Offset. Ältere Erwachsene behandelt die App getrennt (Quelle zu Hitzestress im Alter): 65+ erhält auch auf der ACSM-Skala −1 °C.",
   },
   notley_2025_youth: {
     id: "notley_2025_youth",
@@ -140,7 +141,7 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Ab etwa 60 Jahren sinken Schweißrate und Hautdurchblutung, die kritischen Umweltgrenzen liegen niedriger als bei Jüngeren. CDC stuft Menschen ab 65 Jahren als Risikogruppe ein. Fitnesstragende, akklimatisierte Ältere können trotzdem ähnlich gut regulieren – das Alter allein erklärt nicht alles.",
     konfidenz: "mittel",
     einschraenkung:
-      "Kein Verband nennt einen WBGT-Abzug in °C für Senioren. Die App setzt deshalb denselben kleinen Vorsichtsabzug wie bei unter 16-Jährigen (−1 °C) und sperrt die Leistungsstufe auf Breitensport.",
+      "Die PSU-HEAT-Messungen (Wolf et al. 2023: 49 Ältere, im Schnitt 71 Jahre, gegen 51 Jüngere) fanden im Labor bei leichter Alltagsaktivität deutlich tiefere Grenzen – bei 38 °C vertrugen Ältere nur rund 46 statt 60 % Luftfeuchte, umgerechnet etwa 2–3 °C WBGT weniger. Gemessen wurde ohne Sonne, ohne Wind und nicht beim Sport; fitte, akklimatisierte Ältere regulieren beim Training oft ähnlich gut wie Jüngere. Kein Verband nennt einen °C-Abzug. Die App setzt deshalb vorsichtig −1 °C an – bei allen Sportarten, auch auf der ACSM-Skala – und sperrt die Leistungsstufe auf Breitensport.",
   },
   acsm_fallback_beachvolleyball: {
     id: "acsm_fallback_beachvolleyball",
@@ -189,7 +190,7 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Kein statistisch signifikanter WBGT-Unterschied zwischen Naturrasen, Kunstrasen und Hardcourt-Tennis: der Median lag mittags 0,06 °C, nachmittags rund 0,6 °C auseinander. Kunstrasen war zwar etwa 1 °C wärmer in der Lufttemperatur, aber rund 1 °C trockener im Taupunkt – im Index heben sich beide Effekte auf.",
     konfidenz: "mittel",
     einschraenkung:
-      "Nur eine Klimazone (feucht-subtropisch, USA), und der Naturrasen-Vergleich war bewässert. Messhöhe war die übliche WBGT-Höhe, nicht Knöchelhöhe: Infill (SBR, Sand, Kork, TPE) ändert die Oberflächentemperatur stark, den Index in 1,2 m aber kaum. Es gibt Gegenevidenz: Wardenaar et al. (2022) messen auf Kunstrasen einen signifikant um 2,2 °C höheren WBGT (27,5 vs. 25,3 °C) sowie höhere Globe-Temperatur und geringere Albedo. Eine Übersichtsarbeit (Int J Biometeorol 2024) bestätigt zwar mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei der Studien Feuchtkugel und Schwarzkugel korrekt gemessen haben. Deshalb gilt hier: kein Zahlenzuschlag, aber ein ausdrücklicher Warnhinweis zu Strahlungshitze, Kontaktverbrennungen und der bodennahen Belastung – besonders bei Kindern.",
+      "Nur eine Klimazone (feucht-subtropisch, USA), und der Naturrasen-Vergleich war bewässert. Messhöhe war die übliche WBGT-Höhe, nicht Knöchelhöhe: Infill (SBR, Sand, Kork, TPE) ändert die Oberflächentemperatur stark, den Index in 1,2 m aber kaum. Es gibt Gegenevidenz: Wardenaar et al. (2022) messen auf Kunstrasen einen signifikant um 2,2 °C höheren WBGT (27,5 vs. 25,3 °C) sowie höhere Globe-Temperatur und geringere Albedo. Eine Übersichtsarbeit (Int J Biometeorol 2024) bestätigt zwar mehrheitlich „kein Unterschied“, merkt aber an, dass nur zwei der Studien Feuchtkugel und Schwarzkugel korrekt gemessen haben. Eine Messung auf Tennisplätzen (Sci Rep 2024) fand auf sandverfülltem Kunstrasen bei starker Hitze rund +0,8 °C gegenüber der Wetterstation. Deshalb gilt hier: kein Zahlenzuschlag, aber ein ausdrücklicher Warnhinweis zu Strahlungshitze, Kontaktverbrennungen und der bodennahen Belastung – besonders bei Kindern.",
   },
   pryor_2017: {
     id: "pryor_2017",
@@ -202,7 +203,20 @@ export const sourcesRegistry: Record<SourceId, Source> = {
       "Vor Ort gemessene WBGT-Werte lagen signifikant über den aus Wetterstationsdaten modellierten: Asphalt-Tennisplatz +1,68 °C, rote Bahn +1,07 °C, schwarze Bahn +1,11 °C, Volleyballsand +0,99 °C. In 45 % der Fälle führte das zu einer falschen Sicherheitseinstufung, meist einer Stufe zu günstig.",
     konfidenz: "mittel",
     einschraenkung:
-      "Zwischen den Sportbelägen selbst fand die Studie keine signifikanten Unterschiede – belegt ist also „Platz wärmer als Wetterstation“, nicht „Belag X wärmer als Belag Y“. Der blaue Betonplatz war nicht signifikant, Farbe und Bauweise zählen also mit. Ein Teil dieser Lücke entsteht durch die Modellrechnung selbst; diese App korrigiert die beiden bekanntesten Ursachen (natürliche Feuchtkugel, Windhöhe) und addiert deshalb keinen weiteren Aufschlag.",
+      "Zwischen den Sportbelägen selbst fand die Studie keine signifikanten Unterschiede – belegt ist also „Platz wärmer als Wetterstation“, nicht „Belag X wärmer als Belag Y“. Der blaue Betonplatz war nicht signifikant, Farbe und Bauweise zählen also mit. Ein Teil dieser Lücke entsteht durch die Modellrechnung selbst; diese App korrigiert zwar die beiden bekanntesten Ursachen (natürliche Feuchtkugel, Windhöhe), setzt den gemessenen Vor-Ort-Aufschlag aber trotzdem an – bewusst vorsichtig und nur bei den Belagstypen, die Pryor gemessen hat (Hardcourt, Kunststoffbahn, Sand). Nicht gemessene Beläge wie Ziegelmehl oder Asche erhalten einen Warnhinweis statt einer Zahl.",
+  },
+  tennis_surfaces_2024: {
+    id: "tennis_surfaces_2024",
+    typ: "wissenschaftliche_studie",
+    name: "Using wet-bulb globe temperature meters to examine the effect of heat on various tennis court surfaces",
+    organisation: "Yamaguchi et al. (Doshisha University), Sci Rep 14:15548",
+    jahr: 2024,
+    url: "https://doi.org/10.1038/s41598-024-66518-8",
+    kernaussage:
+      "WBGT vor Ort auf drei Plätzen in Kyoto, Juni bis September 2022, stündlich 9–17 Uhr, gegen die nächste Wetterstation: Hardcourt schon ab mittlerer Hitze signifikant wärmer (etwa +1 °C), sandverfüllter Kunstrasen erst bei starker Hitze (etwa +0,8 °C), ein Platz aus verwittertem Granitboden – vergleichbar mit Asche/Tenne – nur bei extremer Hitze und nur mittags leicht wärmer (Median +0,6 °C). Am späten Nachmittag lagen alle Plätze unter der Station.",
+    konfidenz: "mittel",
+    einschraenkung:
+      "Ein Standort, feucht-subtropisches Klima, Messung in 1,5 m Höhe. Ziegelmehl (roter Sandplatz) wurde nicht gemessen. Für Asche und Sand stützt die Studie keinen pauschalen Zuschlag, für Kunstrasen ist sie ein weiteres Indiz für einen kleinen Aufschlag bei großer Hitze.",
   },
   john_2024_canopy: {
     id: "john_2024_canopy",
@@ -232,15 +246,15 @@ export const sourcesRegistry: Record<SourceId, Source> = {
   wbgt_model: {
     id: "wbgt_model",
     typ: "wissenschaftliche_studie",
-    name: "WBGT-Schätzung aus Wetterdaten (Stull 2011; Hunter & Minyard 1999; FAO-56)",
-    organisation: "J Appl Meteorol Climatol / US National Weather Service / FAO",
+    name: "WBGT-Schätzung aus Wetterdaten (Stull 2011; NWS/NDFD; FAO-56)",
+    organisation: "J Appl Meteorol Climatol / US National Weather Service (NOAA MDL) / FAO",
     jahr: 2011,
     url: "https://doi.org/10.1175/JAMC-D-11-0143.1",
     kernaussage:
-      "Die App misst den WBGT nicht, sondern schätzt ihn: psychrometrische Feuchtkugel nach Stull (2011), Aufschlag auf die natürliche Feuchtkugel nach Hunter & Minyard (1999) wie beim US-Wetterdienst, Wind von 10 m auf 2 m nach FAO-56, Schwarzkugel über eine Strahlungs-Wind-Näherung.",
+      "Die App misst den WBGT nicht, sondern schätzt ihn: psychrometrische Feuchtkugel nach Stull (2011), Aufschlag auf die natürliche Feuchtkugel nach der Regression, die der US-Wetterdienst in seiner operationellen WBGT-Vorhersage (NDFD) nutzt, Wind von 10 m auf 2 m nach FAO-56, Schwarzkugel über eine Strahlungs-Wind-Näherung.",
     konfidenz: "mittel",
     einschraenkung:
-      "Referenzverfahren ist Liljegren et al. (2008) mit vollständiger Energiebilanz (RMSE < 1 °C). Unsere Näherung verzichtet auf die Iteration und liegt damit gröber; die Schwarzkugel-Näherung ist der unsicherste Schritt. Vor Ort gemessene Werte können abweichen, besonders bei Windstille und praller Sonne.",
+      "Referenzverfahren ist Liljegren et al. (2008) mit vollständiger Energiebilanz (RMSE < 1 °C). Unsere Näherung verzichtet auf die Iteration und liegt damit gröber; die Schwarzkugel-Näherung ist der unsicherste Schritt. Für die natürliche Feuchtkugel nutzt die App die überarbeitete NWS-Regression (Tw + 0,001651·S − 0,09555·u + 0,13235·(Ta − Tw) + 0,20249), weil die ältere Formel von Hunter & Minyard (1999) laut NWS gegenüber Messungen deutlich zu niedrig lag. Auch die neue Fassung ist an US-Messstationen kalibriert. Vor Ort gemessene Werte können abweichen, besonders bei Windstille und praller Sonne.",
   },
   acgih_tlv: {
     id: "acgih_tlv",

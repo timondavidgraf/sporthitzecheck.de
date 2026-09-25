@@ -25,27 +25,29 @@ import {
   Search,
   ThermometerSun,
   Timer,
-  Trees,
   Trophy,
   Users,
 } from "lucide-react";
-import type { AgeBand, PerformanceLevel, Shadow, Surface } from "@/lib/wbgtCalculator";
+import {
+  MAX_SESSION_HOURS,
+  type AgeBand,
+  type PerformanceLevel,
+  type Shadow,
+  type Surface,
+} from "@/lib/wbgtCalculator";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
 import { OsmMap } from "@/lib/OsmMap";
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
 import { InfoTip } from "@/lib/InfoTip";
+import { SurfaceNotes } from "@/lib/SurfaceNotes";
 import {
   shadowEffectTip,
   surfaceEffectTip,
   wateringEffectTip,
 } from "@/lib/pitchTooltips";
-import {
-  getSurfaceConfig,
-  hasNumericSurfaceOffset,
-  sportAllowsWatering,
-} from "@/lib/sportsConfig";
+import { hasNumericSurfaceOffset, sportAllowsWatering } from "@/lib/sportsConfig";
 import { isGoogleQuotaOrOutage, messageForGoogleStatus } from "@/lib/googleStatus";
 import {
   DEFAULT_AGE,
@@ -56,7 +58,7 @@ import {
   DEFAULT_SURFACE,
   ageOptionsForSport,
   durationForIntensity,
-  intensityOptionsForSport,
+  INTENSITY_OPTIONS,
   isPerformanceLocked,
   parseAgeGroup,
   parseIntensity,
@@ -64,6 +66,7 @@ import {
   parsePerformanceLevel,
   parseSurface,
   PERFORMANCE_OPTIONS,
+  populationFieldsHint,
   SHADOW_OPTIONS,
   shadowFactorLabel,
   SPORT_OPTIONS,
@@ -102,7 +105,7 @@ const STORAGE_KEY = "sporthitzecheck_form";
 const MAX_DAYS_AHEAD = 7;
 
 /** Lange Einheiten (z. B. Radtouren) bis 8 Stunden; das Diagramm bleibt lesbar. */
-const MAX_DURATION_MIN = 8 * 60;
+const MAX_DURATION_MIN = MAX_SESSION_HOURS * 60;
 
 /** Zeiten nur in 15-Minuten-Schritten – stündliche Wetterdaten machen genauer sinnlos. */
 const QUARTER_MIN = 15;
@@ -349,24 +352,20 @@ function sanitize(raw: unknown): FormState {
   const v = raw as Partial<FormState>;
 
   const sport = parseOption(v.sport, SPORT_OPTIONS, DEFAULT_FORM.sport);
+  const ageGroup = parseAgeGroup(v.ageGroup);
 
   return {
     sport,
-    ageGroup: parseAgeGroup(v.ageGroup),
-    performanceLevel: parsePerformanceLevel(
-      (v as { performanceLevel?: unknown }).performanceLevel,
-      v.ageGroup
-    ),
-    intensity: parseIntensity(v.intensity, (v as { eventType?: unknown }).eventType),
+    ageGroup,
+    performanceLevel: parsePerformanceLevel(v.performanceLevel, ageGroup),
+    intensity: parseIntensity(v.intensity),
     surface: parseSurface(v.surface, sport),
     shadow: parseOption(v.shadow, SHADOW_OPTIONS, DEFAULT_FORM.shadow),
     watered: typeof v.watered === "boolean" ? v.watered : DEFAULT_FORM.watered,
     startTime: isStartStamp(v.startTime) ? v.startTime : "",
     endTime: isClock(v.endTime) ? v.endTime : "",
     locationLabel:
-      typeof v.locationLabel === "string"
-        ? v.locationLabel.replace(/^Aktueller Standort \(/, "Standort (")
-        : DEFAULT_FORM.locationLabel,
+      typeof v.locationLabel === "string" ? v.locationLabel : DEFAULT_FORM.locationLabel,
     lat: typeof v.lat === "number" && Number.isFinite(v.lat) ? v.lat : null,
     lng: typeof v.lng === "number" && Number.isFinite(v.lng) ? v.lng : null,
   };
@@ -668,9 +667,11 @@ export default function HomePage() {
     setSubmitAttempted(true);
     if (!canSubmit) return;
 
+    // 3 Nachkommastellen (~100 m) reichen: das Wettermodell rechnet im
+    // Kilometerraster, und geteilte Links verraten so keinen genauen Standort.
     const params = new URLSearchParams({
-      lat: form.lat!.toFixed(4),
-      lng: form.lng!.toFixed(4),
+      lat: form.lat!.toFixed(3),
+      lng: form.lng!.toFixed(3),
       sport: form.sport,
       age: form.ageGroup,
       level: isPerformanceLocked(form.ageGroup)
@@ -690,7 +691,6 @@ export default function HomePage() {
   // --- UI ------------------------------------------------------------------
 
   const surfaceOptions = surfacesForSport(form.sport);
-  const selectedSurface = getSurfaceConfig(form.sport, form.surface);
   const shadowAffectsSurfaceOffset = hasNumericSurfaceOffset(form.sport, form.surface);
 
   return (
@@ -899,6 +899,7 @@ export default function HomePage() {
             icon={<Users className="size-4" />}
             value={form.ageGroup}
             options={ageOptionsForSport(form.sport)}
+            hint={populationFieldsHint(form.sport)}
             onChange={changeAge}
           />
           <SelectField
@@ -919,7 +920,7 @@ export default function HomePage() {
             label="Intensität"
             icon={<Gauge className="size-4" />}
             value={form.intensity}
-            options={intensityOptionsForSport(form.sport)}
+            options={INTENSITY_OPTIONS}
             onChange={changeIntensity}
           />
         </div>
@@ -1098,40 +1099,7 @@ export default function HomePage() {
             </p>
           </fieldset>
 
-          {selectedSurface.wbgtOffset == null ? (
-            <div
-              role="note"
-              className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 lg:col-span-2"
-            >
-              <ThermometerSun className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
-              <p className="text-sm leading-relaxed text-amber-950">
-                {selectedSurface.hazardWarning ??
-                  "Kein belegter WBGT-Zahlenzuschlag für diesen Belag – nur qualitativer Hinweis."}
-              </p>
-            </div>
-          ) : selectedSurface.hazardWarning ? (
-            <div
-              role="note"
-              className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 lg:col-span-2"
-            >
-              <ThermometerSun className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
-              <p className="text-sm leading-relaxed text-amber-950">
-                {selectedSurface.hazardWarning}
-              </p>
-            </div>
-          ) : null}
-
-          {selectedSurface.hinweis ? (
-            <div
-              role="note"
-              className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3 lg:col-span-2"
-            >
-              <Trees className="mt-0.5 size-4 shrink-0 text-slate-500" aria-hidden />
-              <p className="text-sm leading-relaxed text-slate-700">
-                {selectedSurface.hinweis}
-              </p>
-            </div>
-          ) : null}
+          <SurfaceNotes sport={form.sport} surface={form.surface} />
 
           {sportAllowsWatering(form.sport) ? (
           <label
@@ -1301,24 +1269,26 @@ function SelectField<T extends string>({
 }) {
   return (
     <FormField id={id} label={label} icon={icon} disabled={disabled}>
-      <select
-        id={id}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value as T)}
-        className={`${CONTROL_CLASS} appearance-none pr-10 disabled:cursor-not-allowed`}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-slate-400"
-        aria-hidden
-      />
-      {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      <div className="relative">
+        <select
+          id={id}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value as T)}
+          className={`${CONTROL_CLASS} appearance-none pr-10 disabled:cursor-not-allowed`}
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-slate-400"
+          aria-hidden
+        />
+      </div>
+      {hint && <p className="mt-1 text-xs leading-snug text-slate-500">{hint}</p>}
     </FormField>
   );
 }

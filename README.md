@@ -38,6 +38,7 @@ Alle Umgebungsvariablen und ihre Bedeutung stehen in `.env.example`.
 | `npm run start` | Produktionsserver lokal |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript ohne Emit |
+| `npm test` | Tests für Rechenkern und Empfehlungen (Vitest) |
 
 ## Aufbau
 
@@ -55,7 +56,8 @@ lib/
 
 Der WBGT wird nicht gemessen, sondern aus Temperatur, Luftfeuchte, Wind und
 Strahlung geschätzt: psychrometrische Feuchtkugel nach Stull (2011), Aufschlag
-zur natürlichen Feuchtkugel nach Hunter & Minyard (1999), Windumrechnung von
+zur natürlichen Feuchtkugel nach der Regression des US-Wetterdienstes (NWS/NDFD,
+Nachfolger von Hunter & Minyard 1999), Windumrechnung von
 10 m auf 2 m nach FAO-56.
 
 Jede Zahl in der App ist mit Quelle, Konfidenzstufe und Einschränkung
@@ -64,3 +66,8 @@ Wo keine belastbare Studie existiert, zeigt die App bewusst einen
 Warnhinweis statt eines erfundenen Zahlenwerts.
 
 Die App ersetzt keine Messung vor Ort und keine medizinische Einschätzung.
+
+## Offene Punkte
+
+Bekannte, bewusst verschobene Themen (Google-Nutzungsbedingungen und Karte,
+Rate-Limit) stehen in `docs/offene-punkte.md`.

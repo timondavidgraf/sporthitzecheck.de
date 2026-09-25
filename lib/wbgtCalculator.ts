@@ -18,7 +18,6 @@ export type Surface =
   // Fußball
   | 'grass'
   | 'turf_black'
-  | 'turf_light'
   | 'sand_clay'
   // Tennis
   | 'clay_red'
@@ -29,15 +28,16 @@ export type Surface =
   | 'gravel'
   | 'tartan'
   | 'hockey_water'
-  | 'turf_sand'
-  | 'turf_epdm'
   | 'clay_red_dry';
 export type Shadow = 'none' | 'partial' | 'full';
 export type AgeBand = "youth" | "adult" | "senior";
 export type PerformanceLevel = "recreational" | "elite";
-/** @deprecated Nutze AgeBand; bleibt als Alias für alte Imports. */
-export type AgeGroup = AgeBand;
-export type EventType = 'training' | 'match' | 'tournament' | 'other';
+/**
+ * Art der Einheit für die Handlungsempfehlung. `mixed` steht für
+ * „Intensives Training / Freundschaftsspiel“: weder reines Training noch
+ * Pflichtspiel, deshalb neutral als „Einheit“ formuliert.
+ */
+export type EventType = 'training' | 'match' | 'mixed';
 export type ColorCode = 'green' | 'yellow' | 'orange' | 'red';
 
 export interface WeatherApiResponse {
@@ -49,8 +49,8 @@ export interface WeatherApiResponse {
     temperature_2m: number[];
     relative_humidity_2m: number[];
     wind_speed_10m: number[];
-    direct_radiation: number[];
-    diffuse_radiation: number[];
+    direct_radiation_instant: number[];
+    diffuse_radiation_instant: number[];
   };
 }
 
@@ -92,11 +92,11 @@ export interface WBGTBreakdown {
   solarUnshaded: number;
   /** dieselbe Solarlast mit beschatteter Strahlung */
   solarShaded: number;
-  /** Tg − Ta ohne Beschattung (vor der 20-K-Kappe) */
+  /** Tg − Ta ohne Beschattung (nach der 20-K-Kappe) */
   globeDeltaUnshaded: number;
-  /** Tg − Ta mit Beschattung */
+  /** Tg − Ta mit Beschattung (nach der 20-K-Kappe) */
   globeDeltaShaded: number;
-  /** true, wenn der Tg-Zuschlag auf 20 K begrenzt wurde */
+  /** true, wenn der Tg-Zuschlag mit Beschattung auf 20 K begrenzt wurde */
   globeDeltaCapped: boolean;
   globeUnshaded: number;
   globeShaded: number;
@@ -149,23 +149,28 @@ interface CacheEntry {
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 
+/**
+ * Strahlung als Momentanwert (`*_instant`): Die Standardfelder von Open-Meteo
+ * sind Mittelwerte der VORANGEHENDEN Stunde und hinken der Temperatur damit
+ * eine halbe Stunde hinterher – vormittags zu wenig, nachmittags zu viel Sonne.
+ */
 const HOURLY_PARAMS = [
   'temperature_2m',
   'relative_humidity_2m',
   'wind_speed_10m',
-  'direct_radiation',
-  'diffuse_radiation',
+  'direct_radiation_instant',
+  'diffuse_radiation_instant',
 ] as const;
 
 /** Cache-Lebensdauer: 60 Minuten */
 export const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
- * Versionsnummer im Key: seit dem Tagesvergleich wird auch der Vortag geladen
- * (`past_days=1`). Alte Eintraege haben diese Stunden nicht und wuerden den
- * Vergleich leer lassen – die Version invalidiert sie schlagartig.
+ * Versionsnummer im Key: aendert sich die Form der Antwort (v2: Vortag per
+ * `past_days=1`, v3: Strahlung als Momentanwert), passen alte Eintraege nicht
+ * mehr – die Version invalidiert sie schlagartig.
  */
-const CACHE_PREFIX = 'wbgt_cache_v2_';
+const CACHE_PREFIX = 'wbgt_cache_v3_';
 
 /** Anteil von Direktstrahlung und Untergrund-Offset, der bei der Beschattung wirkt. */
 export const SHADOW_FACTORS: Record<Shadow, number> = {
@@ -218,19 +223,24 @@ export const WBGT_AIR_WEIGHT = 0.1;
 export const WIND_10M_TO_2M = 4.87 / Math.log(67.8 * 10 - 5.42);
 
 /**
- * Aufschlag von der psychrometrischen auf die natürliche Feuchtkugel nach
- * Hunter & Minyard (1999), wie vom US National Weather Service für die
- * operationelle WBGT-Vorhersage genutzt:
- *   Tnw = Tw + 0.00117·S − 0.233·u2 + 1.072
+ * Aufschlag von der psychrometrischen auf die natürliche Feuchtkugel, wie ihn
+ * der US National Weather Service in der operationellen WBGT-Vorhersage (NDFD)
+ * nutzt (Boyer, NOAA MDL; Kalibrierung nach Thomas 2020):
+ *   Tnw = Tw + 0.001651·S − 0.09555·u2 + 0.13235·(Ta − Tw) + 0.20249
+ *
+ * Die ältere Regression von Hunter & Minyard (1999) lag laut NWS gegenüber
+ * Messungen deutlich zu niedrig und wurde deshalb ersetzt; die neue Fassung
+ * berücksichtigt zusätzlich die Feuchtkugeldifferenz Ta − Tw.
  *
  * Notwendig, weil die WBGT-Formel die *natürliche* Feuchtkugel verlangt: ein
  * unbeschirmter, nur natürlich belüfteter Docht. Die psychrometrische
  * Feuchtkugel (Stull) steht im Schatten und wird belüftet – sie direkt
  * einzusetzen unterschätzt den WBGT bei Sonne und wenig Wind deutlich.
  */
-export const NWB_SOLAR_COEF = 0.00117;
-export const NWB_WIND_COEF = 0.233;
-export const NWB_CONST = 1.072;
+export const NWB_SOLAR_COEF = 0.001651;
+export const NWB_WIND_COEF = 0.09555;
+export const NWB_DEPRESSION_COEF = 0.13235;
+export const NWB_CONST = 0.20249;
 
 /** Solarlast auf die Schwarzkugel: Direktstrahlung zaehlt staerker als diffus */
 export const SOLAR_DIRECT_WEIGHT = 0.8;
@@ -243,11 +253,14 @@ export const GLOBE_DELTA_MAX = 20;
 /** Kontextstunden, die vor und nach der Einheit mit angezeigt werden. */
 export const CONTEXT_HOURS = 5;
 
+/** Laengste planbare Einheit (z. B. Radtour) – Formular und Ergebnisseite. */
+export const MAX_SESSION_HOURS = 8;
+
 /**
  * Obergrenze fuer die Balkenzahl: 5 Kontextstunden je Seite plus die
- * maximale Einheitsdauer von 8 Stunden.
+ * maximale Einheitsdauer.
  */
-export const MAX_DISPLAY_HOURS = CONTEXT_HOURS * 2 + 8;
+export const MAX_DISPLAY_HOURS = CONTEXT_HOURS * 2 + MAX_SESSION_HOURS;
 
 /** Open-Meteo liefert maximal 16 Tage Vorhersage. */
 const MAX_FORECAST_DAYS = 16;
@@ -442,31 +455,13 @@ export async function fetchWeatherData(
 }
 
 /**
- * Index der gesuchten Stunde in `hourly.time`. Open-Meteo liefert die Zeitstempel
- * in lokaler Zeit des Ortes ("2026-08-13T14:00"), daher wird auf String-Ebene
- * verglichen statt via Date-Parsing (das UTC annehmen wuerde).
+ * Index der gesuchten Stunde in `hourly.time`, oder -1, wenn sie nicht in den
+ * Daten liegt. Open-Meteo liefert die Zeitstempel in lokaler Zeit des Ortes
+ * ("2026-08-13T14:00"), daher wird auf String-Ebene verglichen statt via
+ * Date-Parsing (das UTC annehmen wuerde).
  *
- * Ohne Argument wird die aktuelle Stunde gesucht.
- */
-export function findHourIndex(
-  apiData: WeatherApiResponse,
-  when: Date | string = new Date()
-): number {
-  const stamp = localHourStamp(when);
-
-  const exact = apiData.hourly.time.indexOf(stamp);
-  if (exact !== -1) return exact;
-
-  // Fallback: letzte Stunde, die nicht in der Zukunft liegt
-  const idx = apiData.hourly.time.findIndex((t) => t > stamp);
-  if (idx === -1) return Math.max(0, apiData.hourly.time.length - 1);
-  return Math.max(0, idx - 1);
-}
-
-/**
- * Wie {@link findHourIndex}, liefert aber -1 statt eines Naeherungswerts, wenn
- * die Stunde nicht in den Daten liegt. Fuer den Tagesvergleich noetig: dort
- * darf kein falscher Tag herangezogen werden, wenn Vortag oder Folgetag fehlen.
+ * Bewusst kein Naeherungswert: eine stillschweigend falsche Stunde (etwa bei
+ * einem alten geteilten Link) waere schlimmer als eine Fehlermeldung.
  */
 export function findExactHourIndex(
   apiData: WeatherApiResponse,
@@ -502,13 +497,14 @@ export function windAt2m(wind10m: number): number {
 }
 
 /**
- * Natuerliche Feuchtkugel Tnw aus der psychrometrischen Feuchtkugel,
- * der Globalstrahlung und dem 2-m-Wind (Hunter & Minyard 1999).
+ * Natuerliche Feuchtkugel Tnw aus der psychrometrischen Feuchtkugel, der
+ * Globalstrahlung, dem 2-m-Wind und der Feuchtkugeldifferenz (NWS/NDFD).
  *
  * Der Wert wird nie unter Tw gedrueckt: bei viel Wind naehern sich beide an,
  * eine Unterschreitung waere physikalisch nicht plausibel.
  */
 function naturalWetBulbTemperature(
+  tempC: number,
   wetBulb: number,
   globalRadiation: number,
   wind2m: number
@@ -517,6 +513,7 @@ function naturalWetBulbTemperature(
     wetBulb +
     NWB_SOLAR_COEF * Math.max(0, globalRadiation) -
     NWB_WIND_COEF * Math.max(0, wind2m) +
+    NWB_DEPRESSION_COEF * Math.max(0, tempC - wetBulb) +
     NWB_CONST;
 
   return Math.max(wetBulb, adjusted);
@@ -543,29 +540,6 @@ function globeFromSolar(
   const capped = raw > GLOBE_DELTA_MAX;
   const delta = Math.min(raw, GLOBE_DELTA_MAX);
   return { delta, capped, globe: tempC + delta };
-}
-
-/**
- * Approximierter Basis-WBGT im Freien:
- *   WBGT = 0.7 * Tnw + 0.2 * Tg + 0.1 * Ta
- *
- * `windMs` ist der Wind auf 10 m, wie Open-Meteo ihn liefert.
- */
-export function approximateWBGT(
-  tempC: number,
-  relHumidity: number,
-  windMs: number,
-  directRadiation: number,
-  diffuseRadiation: number
-): number {
-  const wind2m = windAt2m(windMs);
-  const tw = wetBulbTemperature(tempC, relHumidity);
-  const global = Math.max(0, directRadiation ?? 0) + Math.max(0, diffuseRadiation ?? 0);
-  const tnw = naturalWetBulbTemperature(tw, global, wind2m);
-  const solar = solarLoad(directRadiation, diffuseRadiation);
-  const { globe } = globeFromSolar(tempC, solar, wind2m);
-
-  return WBGT_WET_BULB_WEIGHT * tnw + WBGT_GLOBE_WEIGHT * globe + WBGT_AIR_WEIGHT * tempC;
 }
 
 export function getAmpelThresholds(
@@ -609,15 +583,6 @@ export function getRecommendation(
   isDaytime = true
 ) {
   return getDisplayRecommendation(sport, colorCode, eventType, wbgtValue, isDaytime);
-}
-
-export function getRecommendationLabel(
-  sport: Sport,
-  colorCode: ColorCode,
-  eventType: EventType = 'training',
-  wbgtValue = 0
-): string {
-  return getRecommendation(sport, colorCode, eventType, wbgtValue).headline;
 }
 
 // ---------------------------------------------------------------------------
@@ -700,8 +665,8 @@ export function calculateWBGTForecast(
     const temp = hourly.temperature_2m[i];
     const humidity = hourly.relative_humidity_2m[i];
     const wind = hourly.wind_speed_10m[i];
-    const direct = hourly.direct_radiation[i];
-    const diffuse = hourly.diffuse_radiation[i];
+    const direct = hourly.direct_radiation_instant[i];
+    const diffuse = hourly.diffuse_radiation_instant[i];
 
     const effectiveDirect = direct * shadowFactor;
     const effectiveDiffuse = diffuse * diffuseFactor;
@@ -711,11 +676,17 @@ export function calculateWBGTForecast(
     const globalUnshaded = Math.max(0, direct ?? 0) + Math.max(0, diffuse ?? 0);
     const globalShaded = Math.max(0, effectiveDirect) + Math.max(0, effectiveDiffuse);
     const naturalWetBulbUnshaded = naturalWetBulbTemperature(
+      temp,
       wetBulb,
       globalUnshaded,
       wind2m
     );
-    const naturalWetBulbShaded = naturalWetBulbTemperature(wetBulb, globalShaded, wind2m);
+    const naturalWetBulbShaded = naturalWetBulbTemperature(
+      temp,
+      wetBulb,
+      globalShaded,
+      wind2m
+    );
     const solarUnshaded = solarLoad(direct, diffuse);
     const solarShaded = solarLoad(effectiveDirect, effectiveDiffuse);
     const unshadedGlobe = globeFromSolar(temp, solarUnshaded, wind2m);

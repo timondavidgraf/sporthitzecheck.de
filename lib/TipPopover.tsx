@@ -1,23 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Info } from "lucide-react";
 
 const COMPACT_MQ = "(max-width: 639px)";
 
-export function useIsCompactScreen() {
-  const [compact, setCompact] = useState(false);
+function subscribeCompact(onChange: () => void) {
+  const media = window.matchMedia(COMPACT_MQ);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
 
-  useEffect(() => {
-    const media = window.matchMedia(COMPACT_MQ);
-    const update = () => setCompact(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  return compact;
+/** Auf dem Server immer false – das Bottom-Sheet entsteht erst im Browser. */
+function useIsCompactScreen() {
+  return useSyncExternalStore(
+    subscribeCompact,
+    () => window.matchMedia(COMPACT_MQ).matches,
+    () => false
+  );
 }
 
 export function TipPopover({
@@ -32,9 +39,6 @@ export function TipPopover({
   align?: "left" | "right";
 }) {
   const compact = useIsCompactScreen();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!open || !compact) return;
@@ -52,7 +56,8 @@ export function TipPopover({
 
   if (!open) return null;
 
-  if (compact && mounted) {
+  // compact ist nur im Browser true – document.body existiert dann sicher
+  if (compact) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-end justify-center p-3">
         <button

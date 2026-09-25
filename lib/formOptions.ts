@@ -28,7 +28,6 @@ import {
   surfaceOffsetDisplay,
   thresholdSourceShort,
   usesProfiThresholds,
-  canonicalSurface,
   type IntensityLevel,
   type Sport,
 } from "./sportsConfig";
@@ -76,12 +75,6 @@ const AGE_LABELS: Record<
   },
 };
 
-export const AGE_OPTIONS: readonly Option<AgeBand>[] = [
-  { value: "youth", ...AGE_LABELS.match.youth },
-  { value: "adult", ...AGE_LABELS.match.adult },
-  { value: "senior", ...AGE_LABELS.match.senior },
-];
-
 export function ageOptionsForSport(sport: Sport): readonly Option<AgeBand>[] {
   const family = intensityFamily(sport);
   return (["youth", "adult", "senior"] as const).map((id) => ({
@@ -105,38 +98,23 @@ export function isPerformanceLocked(ageGroup: AgeBand): boolean {
 
 export { DEFAULT_INTENSITY, DEFAULT_PERFORMANCE, durationForIntensity, eventTypeFromIntensity };
 
-export function intensityOptionsForSport(
-  sport: Sport
-): readonly Option<IntensityLevel>[] {
-  return INTENSITY_LEVELS.map((level) => {
-    const modifier = intensityModifier(level.id, sport);
-    return {
-      value: level.id,
-      label: modifier.label,
-      short: modifier.short,
-    };
-  });
-}
+export const INTENSITY_OPTIONS: readonly Option<IntensityLevel>[] = INTENSITY_LEVELS.map(
+  (level) => ({ value: level.id, label: level.label, short: level.short })
+);
 
 /**
- * URL/localStorage: `intensity` hat Vorrang. Fehlt sie, wird ein altes `event=`
- * auf die nächste Intensität gelegt (Training→easy, Spiel→normal, Turnier→intense).
+ * Hinweis unter der Altersklasse, wenn die Sportart keine Verbandsschwelle hat:
+ * Die ACSM-Skala gilt dann für alle, nur 65+ verschiebt die Ampel – ohne
+ * Hinweis wirkt die Auswahl wirkungslos.
  */
-export function parseIntensity(
-  intensityParam: unknown,
-  eventParam?: unknown
-): IntensityLevel {
-  if (
-    intensityParam === "easy" ||
-    intensityParam === "normal" ||
-    intensityParam === "intense"
-  ) {
-    return intensityParam;
-  }
-  if (eventParam === "training") return "easy";
-  if (eventParam === "tournament") return "intense";
-  if (eventParam === "match") return "normal";
-  return DEFAULT_INTENSITY;
+export function populationFieldsHint(sport: Sport): string | undefined {
+  if (usesProfiThresholds(sport)) return undefined;
+  return "Bei dieser Sportart gilt die ACSM-Skala: nur 65+ verschiebt die Ampel (−1 °C), die Leistungsstufe nicht.";
+}
+
+/** Intensität aus URL/localStorage; Unbekanntes fällt auf den Standard zurück. */
+export function parseIntensity(value: unknown): IntensityLevel {
+  return parseOption(value, INTENSITY_OPTIONS, DEFAULT_INTENSITY);
 }
 
 function surfaceOption(sport: Sport, surface: Surface): Option<Surface> {
@@ -238,10 +216,17 @@ export function ageGroupTooltip(
   ageGroup: AgeBand
 ): OffsetTooltipContent {
   if (!usesProfiThresholds(sport)) {
+    if (ageGroup === "senior") {
+      return {
+        body: `Zusätzlich ${formatOffset(-1)} zur ACSM-Skala. Ältere Erwachsene erreichen die Grenze, ab der der Körper Wärme nicht mehr abgeben kann, deutlich früher – im Labor bei leichter Aktivität rund 2–3 °C WBGT früher als junge Erwachsene (Wolf et al. 2023). Fitte, hitzegewöhnte Ältere regulieren beim Training oft besser; der kleine Abzug ist deshalb vorsichtig bemessen.`,
+        confidence: "mittel",
+        sourceIds: ["aging_heat", SPORTS[sport].thresholds.sourceId],
+      };
+    }
     return {
-      body: "Die ACSM-Skala gilt bereits konservativ für alle Altersgruppen. Es gibt keinen Extra-Abzug nach Alter – die Studienschwellen liegen unter den Profi-Verbandswerten.",
+      body: `Die ACSM-Skala gilt bereits für nicht akklimatisierte Freizeitsportler:innen. Unter 16 gibt es keinen Extra-Abzug: Kinder regulieren bei ausreichender Flüssigkeit ähnlich gut wie Erwachsene. Nur 65+ erhält ${formatOffset(-1)}.`,
       confidence: "mittel",
-      sourceIds: [SPORTS[sport].thresholds.sourceId],
+      sourceIds: [SPORTS[sport].thresholds.sourceId, "notley_2025_youth"],
     };
   }
   const short = thresholdSourceShort(sport);
@@ -303,30 +288,16 @@ export function intensityTooltip(intensity: IntensityLevel): OffsetTooltipConten
   };
 }
 
-/**
- * URL/localStorage: youth/adult/senior, plus alte Mischwerte.
- * `elite` und `recreational` waren Alter+Leistung in einem Feld.
- */
+/** Altersklasse aus URL/localStorage; Unbekanntes fällt auf den Standard zurück. */
 export function parseAgeGroup(value: unknown): AgeBand {
-  if (value === "child" || value === "youth") return "youth";
-  if (value === "senior") return "senior";
-  if (value === "elite" || value === "recreational" || value === "adult") return "adult";
+  if (value === "youth" || value === "adult" || value === "senior") return value;
   return DEFAULT_AGE;
 }
 
-/**
- * `level=` hat Vorrang. Altes `age=elite` wird zu Professionell.
- * Jugend und 65+ sind immer Breitensport.
- */
-export function parsePerformanceLevel(
-  levelParam: unknown,
-  ageParam?: unknown
-): PerformanceLevel {
-  const age = parseAgeGroup(ageParam);
-  if (isPerformanceLocked(age)) return "recreational";
-  if (levelParam === "elite" || ageParam === "elite") return "elite";
-  if (levelParam === "recreational") return "recreational";
-  return DEFAULT_PERFORMANCE;
+/** Leistungsstufe aus URL/localStorage. Jugend und 65+ sind immer Breitensport. */
+export function parsePerformanceLevel(value: unknown, ageGroup: AgeBand): PerformanceLevel {
+  if (isPerformanceLocked(ageGroup)) return "recreational";
+  return value === "elite" ? "elite" : DEFAULT_PERFORMANCE;
 }
 
 /** Anteil der Direktstrahlung bzw. des Untergrund-Zuschlags ("50 %"). */
@@ -346,13 +317,9 @@ export function parseOption<T extends string>(
   return options.some((o) => o.value === value) ? (value as T) : fallback;
 }
 
-/** Untergrund aus URL/localStorage; alte Kunstrasen-IDs werden zusammengelegt. */
+/** Untergrund aus URL/localStorage; muss zur Sportart passen. */
 export function parseSurface(value: unknown, sport: Sport): Surface {
-  const raw = typeof value === "string" ? canonicalSurface(value) : value;
-  return surfaceForSport(
-    sport,
-    parseOption(raw, ALL_SURFACE_OPTIONS, DEFAULT_SURFACE)
-  );
+  return surfaceForSport(sport, parseOption(value, ALL_SURFACE_OPTIONS, DEFAULT_SURFACE));
 }
 
 export function labelFor<T extends string>(

@@ -12,10 +12,12 @@ function touchDistance(a: Touch, b: Touch) {
 }
 
 export function OsmMap({ lat, lng }: { lat: number; lng: number }) {
-  const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  // Der Pinch-Handler wird nur einmal registriert und liest den Zoom über die Ref
   const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
   const touchLayerRef = useRef<HTMLDivElement>(null);
 
@@ -23,7 +25,7 @@ export function OsmMap({ lat, lng }: { lat: number; lng: number }) {
   const bbox = `${lng - pad},${lat - pad},${lng + pad},${lat + pad}`;
   const embedSrc = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
   const largerHref = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=20/${lat}/${lng}`;
-  const coordLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  const coordLabel = `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
 
   useEffect(() => {
     const layer = touchLayerRef.current;
@@ -66,14 +68,6 @@ export function OsmMap({ lat, lng }: { lat: number; lng: number }) {
     };
   }, []);
 
-  if (failed) {
-    return (
-      <p className="mt-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-        Karte nicht verfügbar. Koordinaten: {coordLabel}
-      </p>
-    );
-  }
-
   return (
     <div className="mt-2">
       <div className="relative overflow-hidden rounded-lg border border-gray-200">
@@ -83,7 +77,6 @@ export function OsmMap({ lat, lng }: { lat: number; lng: number }) {
           className="pointer-events-none h-40 w-full border-0 md:pointer-events-auto"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
-          onError={() => setFailed(true)}
         />
         <div
           ref={touchLayerRef}

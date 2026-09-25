@@ -90,11 +90,12 @@ export default function HintergrundPage() {
           ergibt sich zunächst nur die <em>psychrometrische</em> Feuchtkugel – der Wert
           im Schatten. Für den WBGT braucht es den unbeschirmten Docht, der zusätzlich
           von der Sonne aufgeheizt wird. Diese App rechnet den Aufschlag nach dem
-          Verfahren, das auch der US-Wetterdienst für seine WBGT-Vorhersagen nutzt
-          (Hunter &amp; Minyard 1999). Zweitens: Wetterdaten liefern Wind auf
+          Verfahren, das der US-Wetterdienst in seiner WBGT-Vorhersage nutzt – in der
+          überarbeiteten Fassung, weil die ältere Formel von Hunter &amp; Minyard (1999)
+          gegenüber Messungen zu niedrig lag. Zweitens: Wetterdaten liefern Wind auf
           10&nbsp;Meter Höhe, gekühlt wird der Körper aber auf zwei Metern. Wer den
           10-Meter-Wind direkt einsetzt, rechnet zu viel Kühlung ein. Beides zusammen
-          würde den WBGT bei Sonne um gut 1,5&nbsp;°C zu niedrig ausweisen – also
+          würde den WBGT bei Sonne um etwa 2–3&nbsp;°C zu niedrig ausweisen – also
           genau in die gefährliche Richtung.
         </p>
       </section>
@@ -176,7 +177,13 @@ export default function HintergrundPage() {
             Zwischen den Belägen selbst fand die Studie keine signifikanten Unterschiede.
             Belegt ist also „Platz wärmer als Wetterstation“, nicht „Belag X wärmer als
             Belag Y“. Die Zuschläge der App sind deshalb ein vorsichtiger
-            Vor-Ort-Aufschlag für versiegelte Beläge, keine validierte Rangfolge.
+            Vor-Ort-Aufschlag, keine validierte Rangfolge – und stehen nur bei den
+            Belagstypen, die Pryor tatsächlich gemessen hat. Eine Messreihe auf
+            Tennisplätzen in Japan (Sci Rep 2024) bestätigt die Größenordnung für
+            Hardcourt (etwa +1&nbsp;°C) und fand auf einem Platz aus Granitboden –
+            vergleichbar mit Asche – nur bei extremer Hitze mittags einen kleinen
+            Aufschlag. Asche und Ziegelmehl bekommen deshalb einen Warnhinweis statt
+            einer Zahl.
           </li>
           <li>
             <strong>Waldschatten:</strong> John et al. (2024) messen im Wald 3–4&nbsp;°C
@@ -191,8 +198,11 @@ export default function HintergrundPage() {
             Hautdurchblutung, die kritischen Umweltgrenzen liegen niedriger (Kenney;
             Meade et al. 2023). CDC stuft Menschen ab 65 Jahren als Risikogruppe ein.
             Fitnesstragende, akklimatisierte Masters-Athleten können trotzdem ähnlich
-            gut regulieren – das Alter allein erklärt nicht alles. Kein Verband nennt
-            einen °C-Abzug; der Betrag ist gesetzt, nicht abgeleitet.
+            gut regulieren – das Alter allein erklärt nicht alles. Im Labor lag die
+            Grenze, ab der der Körper Wärme nicht mehr abgeben kann, bei Älteren um
+            rund 2–3&nbsp;°C WBGT tiefer (Wolf et al. 2023, leichte Aktivität, ohne
+            Sonne). Kein Verband nennt einen °C-Abzug; die −1&nbsp;°C sind bewusst
+            vorsichtig gesetzt und gelten bei allen Sportarten, auch auf der ACSM-Skala.
           </li>
           <li>
             <strong>Leistungsstufe (−2&nbsp;°C Breitensport, 0&nbsp;°C Professionell / Akklimatisiert):</strong>
@@ -222,7 +232,9 @@ export default function HintergrundPage() {
             Notley et al. (BJSM 2025) zeigen vergleichbare Kerntemperaturen bei Kindern
             und Erwachsenen, sofern Flüssigkeit verfügbar ist. Der ACSM führt Kinder
             trotzdem als Risikogruppe – Aufsicht und Belastungsteuerung im Verein. Der
-            Abzug bleibt deshalb klein.
+            Abzug bleibt deshalb klein und gilt nur bei Verbandsschwellen; die
+            ACSM-Skala bei Joggen, Beachvolleyball und Hockey ist bereits für
+            Freizeitsportler:innen gedacht.
           </li>
           <li>
             <strong>Bewässerung (−0,5&nbsp;°C):</strong> der schwächste Wert im ganzen

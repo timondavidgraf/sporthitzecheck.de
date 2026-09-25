@@ -25,7 +25,6 @@ import {
   RotateCcw,
   Share2,
   ThermometerSun,
-  Trees,
 } from "lucide-react";
 import {
   DEFAULT_SHADOW,
@@ -50,6 +49,7 @@ import {
   type IntensityLevel,
   type Sport,
 } from "@/lib/formOptions";
+import { AMPEL_BG, AMPEL_HEX, AMPEL_TEXT } from "@/lib/ampelColors";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
@@ -64,6 +64,7 @@ import {
 import { ShadowThumb, SurfaceThumb } from "@/lib/pitchVisuals";
 import { ThresholdsBox } from "@/lib/ThresholdsBox";
 import { ScienceSources, SourceInfoButton } from "@/lib/ScienceSources";
+import { SurfaceNotes } from "@/lib/SurfaceNotes";
 import { Tip } from "@/lib/TipPopover";
 import {
   ageThresholdOffset,
@@ -87,14 +88,16 @@ import {
 import {
   calculateWBGTForecast,
   fetchWeatherData,
-  findHourIndex,
+  findExactHourIndex,
   getAmpelThresholds,
   getForecastSummary,
   CONTEXT_HOURS,
   GLOBE_DELTA_MAX,
   GLOBE_SOLAR_COEF,
   localHourStamp,
+  MAX_SESSION_HOURS,
   NWB_CONST,
+  NWB_DEPRESSION_COEF,
   NWB_SOLAR_COEF,
   NWB_WIND_COEF,
   WIND_10M_TO_2M,
@@ -116,33 +119,6 @@ import {
   type Surface,
   type WBGTHour,
 } from "@/lib/wbgtCalculator";
-
-// ---------------------------------------------------------------------------
-// Farben
-// ---------------------------------------------------------------------------
-
-const AMPEL_BG: Record<ColorCode, string> = {
-  green: "bg-green-500",
-  yellow: "bg-yellow-400",
-  orange: "bg-orange-500",
-  red: "bg-red-600",
-};
-
-/** Gelb braucht dunkle Schrift, sonst ist der Kontrast unlesbar. */
-const AMPEL_TEXT: Record<ColorCode, string> = {
-  green: "text-white",
-  yellow: "text-slate-900",
-  orange: "text-white",
-  red: "text-white",
-};
-
-/** Gleiche Farben als Hex – recharts kann keine Tailwind-Klassen. */
-const AMPEL_HEX: Record<ColorCode, string> = {
-  green: "#22c55e",
-  yellow: "#facc15",
-  orange: "#f97316",
-  red: "#dc2626",
-};
 
 // ---------------------------------------------------------------------------
 // Prognose-Güte (DWD-Standards)
@@ -172,6 +148,26 @@ function plusOneHour(stamp: string): string {
     ? stamp
     : localHourStamp(new Date(d.getTime() + HOUR_MS));
 }
+
+/**
+ * Ende der Einheit, höchstens {@link MAX_SESSION_HOURS} nach dem Beginn. Das
+ * Formular erzeugt nie längere Einheiten; ein von Hand verlängerter Link würde
+ * sonst ein Diagramm über mehrere Tage mit doppelten Stunden-Beschriftungen bauen.
+ */
+function clampEnd(startTime: string, endTime: string): string {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return endTime;
+
+  const latest = new Date(start.getTime() + MAX_SESSION_HOURS * HOUR_MS);
+  if (end <= latest) return endTime;
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${localHourStamp(latest).slice(0, 11)}${pad(latest.getHours())}:${pad(latest.getMinutes())}`;
+}
+
+const OUT_OF_RANGE_MESSAGE =
+  "Für diesen Zeitraum gibt es keine Vorhersage mehr oder noch keine. Wetterdaten reichen von gestern bis etwa zwei Wochen voraus – ältere geteilte Links lassen sich deshalb nicht mehr auswerten.";
 
 /** "2026-08-13" -> "Do., 13.08." */
 function formatDay(date: string): string {
@@ -238,14 +234,8 @@ function RadarContent() {
 
   const sport = parseOption(searchParams.get("sport"), SPORT_OPTIONS, DEFAULT_SPORT);
   const ageGroup = parseAgeGroup(searchParams.get("age"));
-  const performanceLevel = parsePerformanceLevel(
-    searchParams.get("level"),
-    searchParams.get("age")
-  );
-  const intensity = parseIntensity(
-    searchParams.get("intensity"),
-    searchParams.get("event")
-  );
+  const performanceLevel = parsePerformanceLevel(searchParams.get("level"), ageGroup);
+  const intensity = parseIntensity(searchParams.get("intensity"));
   const eventType = eventTypeFromIntensity(sport, intensity);
   const surface = parseSurface(searchParams.get("surface"), sport);
   const shadow = parseOption(searchParams.get("shadow"), SHADOW_OPTIONS, DEFAULT_SHADOW);
@@ -256,9 +246,12 @@ function RadarContent() {
   const startRaw = searchParams.get("start");
   const startTime = isStamp(startRaw) ? startRaw : localHourStamp(new Date());
 
-  // Ohne Endzeit (alte Links) gilt die Einheit als eine Stunde lang
+  // Ohne gültige Endzeit gilt die Einheit als eine Stunde lang
   const endRaw = searchParams.get("end");
-  const endTime = isStamp(endRaw) && endRaw > startTime ? endRaw : plusOneHour(startTime);
+  const endTime = clampEnd(
+    startTime,
+    isStamp(endRaw) && endRaw > startTime ? endRaw : plusOneHour(startTime)
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +272,16 @@ function RadarContent() {
       try {
         const data = await fetchWeatherData(lat, lng, false, startTime);
 
+        // Nur exakte Treffer: liegt die Einheit ausserhalb der Daten (z. B. ein
+        // alter geteilter Link), duerfen keine Nachbarstunden einspringen.
         const { from, to } = sessionHourStamps(startTime, endTime);
+        const sessionFromIndex = findExactHourIndex(data, from);
+        const sessionToIndex = findExactHourIndex(data, to);
+        if (sessionFromIndex === -1 || sessionToIndex === -1) {
+          if (!cancelled) setState({ status: "error", message: OUT_OF_RANGE_MESSAGE });
+          return;
+        }
+
         const forecast = calculateWBGTForecast(data, {
           surface,
           shadow,
@@ -289,8 +291,8 @@ function RadarContent() {
           sport,
           eventType,
           intensity,
-          sessionFromIndex: findHourIndex(data, from),
-          sessionToIndex: findHourIndex(data, to),
+          sessionFromIndex,
+          sessionToIndex,
         });
 
         const hoursAhead = (new Date(startTime).getTime() - Date.now()) / HOUR_MS;
@@ -645,7 +647,7 @@ function Breakdown({
   const surfaceLabel = surfaceCfg.name;
   const ageLabel = labelFor(ageOptionsForSport(sport), ageGroup);
   const performanceLabel = labelFor(PERFORMANCE_OPTIONS, performanceLevel);
-  const intensityName = intensityHeadline(intensity, sport);
+  const intensityName = intensityHeadline(intensity);
   const ageOff = ageThresholdOffset(sport, ageGroup);
   const performanceOff = performanceThresholdOffset(
     sport,
@@ -666,7 +668,7 @@ function Breakdown({
     `${WBGT_WET_BULB_WEIGHT}×Tnw + ${WBGT_GLOBE_WEIGHT}×Tg + ${WBGT_AIR_WEIGHT}×Ta`;
   const solarFormula = `${SOLAR_DIRECT_WEIGHT}×Gdir + ${SOLAR_DIFFUSE_WEIGHT}×Gdif`;
   const globeFormula = `${GLOBE_SOLAR_COEF}×Solar / (1+Wind 2 m), max. ${GLOBE_DELTA_MAX} K`;
-  const nwbFormula = `Tw + ${NWB_SOLAR_COEF}×Global − ${NWB_WIND_COEF}×Wind 2 m + ${NWB_CONST}`;
+  const nwbFormula = `Tw + ${NWB_SOLAR_COEF}×Global − ${NWB_WIND_COEF}×Wind 2 m + ${NWB_DEPRESSION_COEF}×(Ta − Tw) + ${NWB_CONST}`;
 
   return (
     <details className="group rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -707,7 +709,7 @@ function Breakdown({
 
         <BreakdownSection
           title="3. Feuchtkugel, Schwarzkugel, Basis-WBGT"
-          hint={`Wind 10 m → 2 m nach FAO-56 (×${WIND_10M_TO_2M.toFixed(2)}). Tw nach Stull (2011) aus Ta und Feuchte, dann Tnw nach Hunter & Minyard (1999): ${nwbFormula}. Solarlast ${solarFormula}. Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
+          hint={`Wind 10 m → 2 m nach FAO-56 (×${WIND_10M_TO_2M.toFixed(2)}). Tw nach Stull (2011) aus Ta und Feuchte, dann Tnw nach dem Verfahren des US-Wetterdienstes (NWS/NDFD): ${nwbFormula}. Solarlast ${solarFormula}. Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
         >
           <BreakdownRow label="Wind auf 2 m" value={`${b.wind2m.toFixed(1)} m/s`} />
           <BreakdownRow
@@ -814,7 +816,7 @@ function Breakdown({
             label={`Alters-Offset (${ageLabel})`}
             value={ageOffsetLabel(sport, ageGroup)}
             info={
-              usesProfiThresholds(sport) ? (
+              ageOff !== 0 ? (
                 <SourceInfoButton sourceId={ageSourceId} variant="anchor" />
               ) : undefined
             }
@@ -1140,7 +1142,6 @@ function PlaceBox({
   watered: boolean;
   className?: string;
 }) {
-  const config = getSurfaceConfig(sport, surface);
   const offsetLabel = surfaceOffsetLabel(sport, surface);
 
   return (
@@ -1185,27 +1186,7 @@ function PlaceBox({
             />
           </span>
         </div>
-        {config.wbgtOffset == null || config.hazardWarning ? (
-          <p
-            role="note"
-            className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-relaxed text-amber-950"
-          >
-            <ThermometerSun className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden />
-            <span>
-              {config.hazardWarning ??
-                "Kein belegter WBGT-Zahlenzuschlag für diesen Belag – nur qualitativer Hinweis."}
-            </span>
-          </p>
-        ) : null}
-        {config.hinweis ? (
-          <p
-            role="note"
-            className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs leading-relaxed text-slate-700"
-          >
-            <Trees className="mt-0.5 size-3.5 shrink-0 text-slate-500" aria-hidden />
-            <span>{config.hinweis}</span>
-          </p>
-        ) : null}
+        <SurfaceNotes sport={sport} surface={surface} size="compact" />
       </div>
     </Panel>
   );

@@ -5,8 +5,8 @@ import { Tip } from "@/lib/TipPopover";
 import {
   ageGroupTooltip,
   ageOptionsForSport,
+  INTENSITY_OPTIONS,
   intensityOffsetLabel,
-  intensityOptionsForSport,
   intensityTooltip,
   labelFor,
   PERFORMANCE_OPTIONS,
@@ -40,13 +40,7 @@ import {
   type SourceId,
 } from "@/lib/sourcesRegistry";
 import type { AgeBand, ColorCode, PerformanceLevel } from "@/lib/wbgtCalculator";
-
-const AMPEL_BG: Record<ColorCode, string> = {
-  green: "bg-green-500",
-  yellow: "bg-yellow-400",
-  orange: "bg-orange-500",
-  red: "bg-red-600",
-};
+import { AMPEL_BG } from "@/lib/ampelColors";
 
 const THRESHOLD_STEPS: { code: ColorCode; label: string }[] = [
   { code: "green", label: "Grün" },
@@ -92,7 +86,11 @@ export function ThresholdsBox({
   const fifpro = config.thresholds.alternative;
   const extraPauseAt = config.thresholds.extraPauseAt;
   const suspensionAt = config.thresholds.suspensionAt;
-  const intensityOptions = intensityOptionsForSport(sport);
+  const intensityOptions = INTENSITY_OPTIONS;
+  // Verbandsnotizen wie „UCI: rot, ≥28 °C“ passen nur zu unverschobenen
+  // Grenzen – neben verschobenen Werten würden sie sich widersprechen.
+  const shifted =
+    Math.abs(bounds.orange_max - baseBoundsForSport(sport).orange_max) > 0.05;
   const ageOptions = ageOptionsForSport(sport);
 
   const contextTags = [
@@ -166,7 +164,7 @@ export function ThresholdsBox({
       <ul className="mt-3 flex flex-col gap-1.5">
         {THRESHOLD_STEPS.map((step) => {
           const active = step.code === colorCode;
-          const note = config.thresholds.stageNotes?.[step.code];
+          const note = shifted ? undefined : config.thresholds.stageNotes?.[step.code];
           const showInterpTip =
             sport === "football" &&
             (step.code === "yellow" || step.code === "orange") &&
