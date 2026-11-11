@@ -5,7 +5,7 @@ import { CONTACT_EMAIL, LEGAL_OPERATOR } from "@/lib/legal";
 export const metadata: Metadata = {
   title: "Datenschutz",
   description:
-    "Datenschutzerklärung zu SportHitzeCheck, Google Places, Vercel Analytics, Sentry und E-Mail-Kontakt.",
+    "Datenschutzerklärung zu SportHitzeCheck, Google Places, Besucherzählung ohne Cookies, Sentry und E-Mail-Kontakt.",
   alternates: { canonical: "/datenschutz" },
   openGraph: {
     title: "Datenschutz – SportHitzeCheck",
@@ -139,23 +139,29 @@ export default function DatenschutzPage() {
 
       <section>
         <h2 className="text-base font-bold text-slate-900">
-          7. Vercel Web Analytics (cookielos)
+          7. Besucherzählung ohne Cookies
         </h2>
         <p className="mt-1.5">
-          Wir nutzen Vercel Web Analytics, um Seitenaufrufe in aggregierter Form
-          zu verstehen (z. B. welche Seite wie oft aufgerufen wird). Der Dienst
-          arbeitet ohne Cookies und ohne dauerhafte Kennung im Browser. Es werden
-          keine Werbeprofile gebildet. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
-          DSGVO (Reichweitenmessung in datensparsamem Umfang). Weitere Angaben:{" "}
-          <a
-            href="https://vercel.com/docs/analytics/privacy-policy"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-orange-700 underline decoration-orange-200 underline-offset-2"
-          >
-            Datenschutzhinweise zu Vercel Web Analytics
-          </a>
-          .
+          Um zu verstehen, wie viele Menschen das Angebot nutzen und wie sie es
+          finden, zählt unser Server die Seitenabrufe selbst – ohne Cookies, ohne
+          Skript in Ihrem Browser und ohne dass auf Ihrem Gerät etwas gespeichert
+          oder ausgelesen wird. Ausgewertet wird nur, was Ihr Browser beim Abruf
+          einer Seite ohnehin mitsendet: aufgerufene Seite, verweisende Website
+          (nur deren Domain) bzw. Kampagnenangaben im Link, Browserkennung,
+          bevorzugte Sprache und IP-Adresse. Diese Angaben übermittelt unser
+          Server bei jedem Seitenabruf an einen eigenen Zählserver des Betreibers.
+          Dort wird aus IP-Adresse (bei IPv6 nur der Netzanteil), Browserkennung,
+          unserer Domain und einem täglich neu erzeugten Zufallswert eine
+          Tageskennung berechnet, damit Besucher eines Tages nicht doppelt zählen;
+          gespeichert werden ausschließlich Tagessummen (z. B. Seitenaufrufe,
+          Besuche, Herkunft, grober Gerätetyp, Browser- und Betriebssystemfamilie,
+          Sprache). IP-Adresse und Browserkennung werden nicht gespeichert, der
+          Zufallswert wird um Mitternacht verworfen; danach ist kein Bezug zu
+          einer Person mehr möglich. Sendet Ihr Browser „Do Not Track“ oder
+          „Global Privacy Control“, wird nicht gezählt; Sie können auch formlos
+          per E-Mail widersprechen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f
+          DSGVO (Reichweitenmessung in datensparsamem Umfang). Die Tagessummen
+          bewahren wir bis zu 800 Tage auf.
         </p>
       </section>
 
@@ -241,8 +247,9 @@ export default function DatenschutzPage() {
         <h2 className="text-base font-bold text-slate-900">11. Speicherdauer</h2>
         <p className="mt-1.5">
           Server-Logs werden vom Hoster üblicherweise kurzfristig vorgehalten.
-          Analytics- und Fehlerdaten werden nur so lange gespeichert, wie es für
-          den jeweiligen Zweck erforderlich ist. Daten im localStorage können Sie
+          Die Tagessummen der Besucherzählung bewahren wir bis zu 800 Tage auf
+          (siehe Abschnitt 7). Fehlerdaten werden nur so lange gespeichert, wie es
+          für den jeweiligen Zweck erforderlich ist. Daten im localStorage können Sie
           selbst im Browser löschen.
         </p>
       </section>

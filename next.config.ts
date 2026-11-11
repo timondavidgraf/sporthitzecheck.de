@@ -12,8 +12,9 @@ const isDev = process.env.NODE_ENV === "development";
  * Turbopack zusätzlich `unsafe-eval`.
  *
  * Externe Ziele: Open-Meteo (Wetterdaten, direkt aus dem Browser) und der
- * OpenStreetMap-Embed. Sentry und Vercel Analytics laufen über eigene Pfade
- * (`/monitoring`, `/_vercel/insights`) und gelten damit als same-origin.
+ * OpenStreetMap-Embed. Sentry läuft über einen eigenen Pfad (`/monitoring`)
+ * und gilt damit als same-origin. Die Besucherzählung braucht nichts im
+ * Browser (proxy.ts, lib/besucherzaehlung.ts).
  */
 const csp = [
   "default-src 'self'",
