@@ -149,7 +149,9 @@ export default function DatenschutzPage() {
           einer Seite ohnehin mitsendet: aufgerufene Seite, verweisende Website
           (nur deren Domain) bzw. Kampagnenangaben im Link, Browserkennung,
           bevorzugte Sprache und IP-Adresse. Diese Angaben übermittelt unser
-          Server bei jedem Seitenabruf an einen eigenen Zählserver des Betreibers.
+          Server bei jedem Seitenabruf an einen eigenen Zählserver des Betreibers,
+          der bei der Hetzner Online GmbH, Industriestr. 25, 91710 Gunzenhausen,
+          in Deutschland betrieben wird (Auftragsverarbeitung nach Art. 28 DSGVO).
           Dort wird aus IP-Adresse (bei IPv6 nur der Netzanteil), Browserkennung,
           unserer Domain und einem täglich neu erzeugten Zufallswert eine
           Tageskennung berechnet, damit Besucher eines Tages nicht doppelt zählen;
