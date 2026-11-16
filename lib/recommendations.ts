@@ -299,17 +299,35 @@ function reachedOfficial(
   return { points, sourceId };
 }
 
+function activityNoun(eventType: EventType, sport: Sport): string {
+  if (eventType === "mixed") return "Einheit";
+  if (eventType !== "match") return "Training";
+  return intensityFamily(sport) === "endurance" ? "Wettkampf" : "Spiel";
+}
+
+/**
+ * Überschrift für den Rückblick: Die Einheit ist vorbei, eine Anweisung im
+ * Präsens („absagen empfohlen“) wäre fehl am Platz. Bewusst als Einordnung
+ * formuliert, nicht als Urteil über die Entscheidung von damals.
+ */
+export function reviewHeadline(color: ColorCode, eventType: EventType, sport: Sport): string {
+  const activity = activityNoun(eventType, sport);
+  switch (color) {
+    case "green":
+      return `${activity} war aus Hitzesicht unkritisch`;
+    case "yellow":
+      return `${activity}: Anpassungen wären sinnvoll gewesen`;
+    case "orange":
+      return `${activity}: deutliche Anpassungen wären nötig gewesen`;
+    case "red":
+      return `${activity}: Absage oder Verlegung wäre empfohlen gewesen`;
+  }
+}
+
 function recommendationHeadline(color: ColorCode, eventType: EventType, sport: Sport): string {
   const endurance = intensityFamily(sport) === "endurance";
   const competition = eventType === "match";
-  const activity =
-    eventType === "mixed"
-      ? "Einheit"
-      : competition
-        ? endurance
-          ? "Wettkampf"
-          : "Spiel"
-        : "Training";
+  const activity = activityNoun(eventType, sport);
 
   switch (color) {
     case "green":

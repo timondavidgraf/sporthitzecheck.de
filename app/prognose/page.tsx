@@ -25,6 +25,7 @@ import {
   MapPin,
   RotateCcw,
   Share2,
+  Siren,
   ThermometerSun,
 } from "lucide-react";
 import {
@@ -51,6 +52,9 @@ import {
   type Sport,
 } from "@/lib/formOptions";
 import { AMPEL_BG, AMPEL_HEX, AMPEL_TEXT } from "@/lib/ampelColors";
+import { fetchHeatWarning, type HeatWarning } from "@/lib/dwdWarnings";
+import { reviewHeadline } from "@/lib/recommendations";
+import { peakUvIndex, uvAdvice, uvCategory } from "@/lib/uvIndex";
 import { BrandHeader } from "@/lib/BrandHeader";
 import { DisclaimerBox } from "@/lib/DisclaimerBox";
 import { FeedbackSupport } from "@/lib/FeedbackSupport";
@@ -70,6 +74,7 @@ import { Tip } from "@/lib/TipPopover";
 import {
   ageThresholdOffset,
   baseBoundsForSport,
+  formatDecimal,
   formatSignedOffset,
   formatWbgtNumber,
   getSurfaceConfig,
@@ -108,6 +113,7 @@ import {
   shiftStampByDays,
   SOLAR_DIFFUSE_WEIGHT,
   SOLAR_DIRECT_WEIGHT,
+  SOLAR_REFERENCE_ELEVATION_DEG,
   summarizeSession,
   WATERING_COOLING,
   WATERING_MAX_HUMIDITY,
@@ -140,6 +146,9 @@ function confidenceFor(hoursAhead: number): Confidence {
 }
 
 const HOUR_MS = 3_600_000;
+
+/** Der DWD warnt für heute und den Folgetag; weiter voraus lohnt die Abfrage nicht. */
+const HEAT_WARNING_LOOKAHEAD_HOURS = 60;
 
 function isStamp(value: string | null): value is string {
   return value !== null && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value);
@@ -222,6 +231,8 @@ type LoadState =
       hoursAhead: number;
       /** Die Einheit ist bereits vorbei: Rückblick statt Prognose. */
       isReview: boolean;
+      /** Amtliche DWD-Hitzewarnung für den Zeitraum; null = keine oder nicht abrufbar. */
+      heatWarning: HeatWarning | null;
       comparison: DayComparison[];
     };
 
@@ -287,6 +298,17 @@ function RadarContent() {
         return;
       }
 
+      // DWD-Warnungen gibt es nur für die nächsten Tage – parallel zum Wetter
+      // abrufen, damit die Ampel nicht darauf wartet. Fehler ergeben null.
+      const sessionStart = new Date(startTime);
+      const sessionEnd = new Date(endTime);
+      const warningRelevant =
+        sessionEnd.getTime() > Date.now() &&
+        sessionStart.getTime() - Date.now() < HEAT_WARNING_LOOKAHEAD_HOURS * HOUR_MS;
+      const heatWarningRequest = warningRelevant
+        ? fetchHeatWarning(lat, lng, sessionStart, sessionEnd)
+        : Promise.resolve(null);
+
       try {
         const data = await fetchWeatherData(lat, lng, false, startTime);
 
@@ -347,7 +369,11 @@ function RadarContent() {
           };
         });
 
-        if (!cancelled) setState({ status: "ready", forecast, hoursAhead, isReview, comparison });
+        const heatWarning = await heatWarningRequest;
+
+        if (!cancelled) {
+          setState({ status: "ready", forecast, hoursAhead, isReview, heatWarning, comparison });
+        }
       } catch (err) {
         const offline = typeof navigator !== "undefined" && !navigator.onLine;
         // Offline ist ein Nutzungszustand, kein Bug – den nicht als Fehler melden.
@@ -372,6 +398,13 @@ function RadarContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paramKey]);
 
+  // Der Seitentitel kommt statisch aus dem Layout („Prognose“); für vergangene
+  // Termine stimmt er nicht und wird hier im Browser nachgezogen.
+  const isReview = state.status === "ready" && state.isReview;
+  useEffect(() => {
+    document.title = `${isReview ? "Rückblick" : "Prognose"} – SportHitzeCheck`;
+  }, [isReview]);
+
   if (state.status === "loading") return <RadarSkeleton />;
   if (state.status === "error") return <RadarError message={state.message} />;
 
@@ -391,7 +424,7 @@ function RadarContent() {
     label: `${hour.timestamp.slice(11, 13)}`,
     wbgt: hour.wbgtValue,
     // vorformatiert, damit LabelList ohne Formatter auskommt
-    wbgtLabel: `${hour.wbgtValue.toFixed(1)}°`,
+    wbgtLabel: `${formatDecimal(hour.wbgtValue)}°`,
     color: AMPEL_HEX[hour.colorCode],
     // Kontextstunden blasser, damit der gebuchte Zeitraum sofort ins Auge fällt
     opacity: hour.inSession ? 1 : 0.3,
@@ -411,8 +444,16 @@ function RadarContent() {
   return (
     <PageShell>
       {state.isReview && <ReviewNotice date={startTime.slice(0, 10)} />}
+      {state.heatWarning && <HeatWarningNotice warning={state.heatWarning} />}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <AmpelBox summary={summary} peakHour={peakHour} />
+        <AmpelBox
+          summary={summary}
+          peakHour={peakHour}
+          uvIndex={peakUvIndex(sessionHours)}
+          reviewLabel={
+            state.isReview ? reviewHeadline(summary.colorCode, eventType, sport) : null
+          }
+        />
 
         <ThresholdsBox
           sport={sport}
@@ -589,7 +630,7 @@ function DayCompare({
                   aria-hidden
                 />
                 <span className="text-base font-extrabold text-slate-900 tabular-nums">
-                  {day.maxWbgt.toFixed(1)}°
+                  {formatDecimal(day.maxWbgt)}°
                 </span>
               </p>
             ) : (
@@ -612,7 +653,7 @@ function DayCompare({
 // ---------------------------------------------------------------------------
 
 function signed(value: number): string {
-  return `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(1)} °C`;
+  return `${value < 0 ? "−" : "+"}${formatDecimal(Math.abs(value))} °C`;
 }
 
 function pct(factor: number): string {
@@ -630,7 +671,7 @@ function watt(value: number): string {
 function wateringBreakdownLabel(b: WBGTBreakdown): string {
   if (!b.watered) return "Abzug Bewässerung (nicht gewählt)";
   if (b.wateringOffset !== 0) {
-    return `Abzug Bewässerung (−${WATERING_COOLING.toFixed(1)} °C, 1. Stunde)`;
+    return `Abzug Bewässerung (−${formatDecimal(WATERING_COOLING)} °C, 1. Stunde)`;
   }
   if (b.globalUnshaded <= 0) {
     return "Abzug Bewässerung (entfällt ohne Sonne)";
@@ -691,7 +732,7 @@ function Breakdown({
 
   const formula =
     `${WBGT_WET_BULB_WEIGHT}×Tnw + ${WBGT_GLOBE_WEIGHT}×Tg + ${WBGT_AIR_WEIGHT}×Ta`;
-  const solarFormula = `${SOLAR_DIRECT_WEIGHT}×Gdir + ${SOLAR_DIFFUSE_WEIGHT}×Gdif`;
+  const solarFormula = `${SOLAR_DIRECT_WEIGHT}×Gkugel + ${SOLAR_DIFFUSE_WEIGHT}×Gdif`;
   const globeFormula = `${GLOBE_SOLAR_COEF}×Solar / (1+Wind 2 m), max. ${GLOBE_DELTA_MAX} K`;
   const nwbFormula = `Tw + ${NWB_SOLAR_COEF}×Global − ${NWB_WIND_COEF}×Wind 2 m + ${NWB_DEPRESSION_COEF}×(Ta − Tw) + ${NWB_CONST}`;
 
@@ -711,14 +752,19 @@ function Breakdown({
         </p>
 
         <BreakdownSection title="1. Wetterdaten (Open-Meteo)">
-          <BreakdownRow label="Lufttemperatur Ta" value={`${b.temperature.toFixed(1)} °C`} />
+          <BreakdownRow label="Lufttemperatur Ta" value={`${formatDecimal(b.temperature)} °C`} />
           <BreakdownRow label="Relative Feuchte" value={`${Math.round(b.humidity)} %`} />
-          <BreakdownRow label="Wind (10 m)" value={`${b.wind.toFixed(1)} m/s`} />
+          <BreakdownRow label="Wind (10 m)" value={`${formatDecimal(b.wind)} m/s`} />
           <BreakdownRow
             label="Globalstrahlung (Gdir + Gdif)"
             value={watt(b.globalUnshaded)}
           />
-          <BreakdownRow label="Direktstrahlung Gdir" value={watt(b.directRadiation)} />
+          <BreakdownRow label="Direktstrahlung Gdir (waagerecht)" value={watt(b.directRadiation)} />
+          <BreakdownRow
+            label="Direktstrahlung senkrecht zur Sonne (DNI)"
+            value={b.directNormal !== null ? watt(b.directNormal) : "nicht geliefert"}
+            numeric={b.directNormal !== null}
+          />
           <BreakdownRow label="Diffuse Strahlung Gdif" value={watt(b.diffuseRadiation)} />
         </BreakdownSection>
 
@@ -734,43 +780,44 @@ function Breakdown({
 
         <BreakdownSection
           title="3. Feuchtkugel, Schwarzkugel, Basis-WBGT"
-          hint={`Wind 10 m → 2 m nach FAO-56 (×${WIND_10M_TO_2M.toFixed(2)}). Tw nach Stull (2011) aus Ta und Feuchte, dann Tnw nach dem Verfahren des US-Wetterdienstes (NWS/NDFD): ${nwbFormula}. Solarlast ${solarFormula}. Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
+          hint={`Wind 10 m → 2 m nach FAO-56 (×${formatDecimal(WIND_10M_TO_2M, 2)}). Tw nach Stull (2011) aus Ta und Feuchte, dann Tnw nach dem Verfahren des US-Wetterdienstes (NWS/NDFD): ${nwbFormula}. Solarlast ${solarFormula}; Gkugel = DNI × sin ${SOLAR_REFERENCE_ELEVATION_DEG}°, weil eine Kugel die Sonne unabhängig vom Sonnenstand einfängt (ohne DNI: Gdir). Tg = Ta + ${globeFormula}. WBGT = ${formula}.`}
         >
-          <BreakdownRow label="Wind auf 2 m" value={`${b.wind2m.toFixed(1)} m/s`} />
+          <BreakdownRow label="Wind auf 2 m" value={`${formatDecimal(b.wind2m)} m/s`} />
           <BreakdownRow
             label="Psychrometrische Feuchtkugel Tw"
-            value={`${b.wetBulb.toFixed(1)} °C`}
+            value={`${formatDecimal(b.wetBulb)} °C`}
           />
           <BreakdownRow
             label="Natürliche Feuchtkugel Tnw ohne Schatten"
-            value={`${b.naturalWetBulbUnshaded.toFixed(1)} °C`}
+            value={`${formatDecimal(b.naturalWetBulbUnshaded)} °C`}
             info={<SourceInfoButton sourceId="wbgt_model" variant="anchor" />}
           />
           <BreakdownRow
             label="Natürliche Feuchtkugel Tnw mit Schatten"
-            value={`${b.naturalWetBulbShaded.toFixed(1)} °C`}
+            value={`${formatDecimal(b.naturalWetBulbShaded)} °C`}
           />
+          <BreakdownRow label="Direktanteil der Kugel Gkugel" value={watt(b.globeDirect)} />
           <BreakdownRow label="Solarlast ohne Schatten" value={watt(b.solarUnshaded)} />
           <BreakdownRow label="Solarlast mit Schatten" value={watt(b.solarShaded)} />
           <BreakdownRow
             label="Tg-Zuschlag ohne Schatten"
-            value={`${b.globeDeltaUnshaded.toFixed(1)} K`}
+            value={`${formatDecimal(b.globeDeltaUnshaded)} K`}
           />
           <BreakdownRow
             label="Tg-Zuschlag mit Schatten"
-            value={`${b.globeDeltaShaded.toFixed(1)} K${
+            value={`${formatDecimal(b.globeDeltaShaded)} K${
               b.globeDeltaCapped ? ` (auf ${GLOBE_DELTA_MAX} K begrenzt)` : ""
             }`}
           />
-          <BreakdownRow label="Schwarzkugel Tg ohne Schatten" value={`${b.globeUnshaded.toFixed(1)} °C`} />
-          <BreakdownRow label="Schwarzkugel Tg mit Schatten" value={`${b.globeShaded.toFixed(1)} °C`} />
+          <BreakdownRow label="Schwarzkugel Tg ohne Schatten" value={`${formatDecimal(b.globeUnshaded)} °C`} />
+          <BreakdownRow label="Schwarzkugel Tg mit Schatten" value={`${formatDecimal(b.globeShaded)} °C`} />
           <BreakdownRow
             label={`Basis-WBGT volle Sonne (${formula})`}
-            value={`${b.baseWbgt.toFixed(1)} °C`}
+            value={`${formatDecimal(b.baseWbgt)} °C`}
           />
           <BreakdownRow
             label="Basis-WBGT nach Beschattung"
-            value={`${b.shadedWbgt.toFixed(1)} °C`}
+            value={`${formatDecimal(b.shadedWbgt)} °C`}
           />
           <BreakdownRow
             label="Abzug Strahlung durch Beschattung"
@@ -780,7 +827,7 @@ function Breakdown({
 
         <BreakdownSection
           title="4. Platzkorrekturen"
-          hint={`Bewässerung: höchstens −${WATERING_COOLING.toFixed(1)} °C, nur in der ersten Stunde und nur bei Sonne unter ${WATERING_MAX_HUMIDITY} % Luftfeuchte. Bei schwüler Luft hebt die Verdunstung die Feuchtkugel an, statt zu kühlen.`}
+          hint={`Bewässerung: höchstens −${formatDecimal(WATERING_COOLING)} °C, nur in der ersten Stunde und nur bei Sonne unter ${WATERING_MAX_HUMIDITY} % Luftfeuchte. Bei schwüler Luft hebt die Verdunstung die Feuchtkugel an, statt zu kühlen.`}
         >
           {b.surfaceOffsetApplied ? (
             <>
@@ -818,12 +865,12 @@ function Breakdown({
             <dt className="font-bold text-slate-900">
               Finaler WBGT
               <span className="mt-0.5 block text-[11px] font-normal text-slate-500">
-                {b.baseWbgt.toFixed(1)} {signed(b.shadeRadiationAdjustment)}{" "}
+                {formatDecimal(b.baseWbgt)} {signed(b.shadeRadiationAdjustment)}{" "}
                 {signed(b.effectiveSurfaceOffset)} {signed(b.wateringOffset)}
               </span>
             </dt>
             <dd className="shrink-0 font-extrabold text-slate-900 tabular-nums">
-              {hour.wbgtValue.toFixed(1)} °C
+              {formatDecimal(hour.wbgtValue)} °C
             </dd>
           </div>
         </dl>
@@ -894,16 +941,16 @@ function Breakdown({
             label="Finale Schwelle Rot"
             value={formatWbgtNumber(thresholds.orange_max)}
           />
-          <BreakdownRow label="Grün" value={`≤ ${thresholds.gruen_max.toFixed(1)} °C`} />
+          <BreakdownRow label="Grün" value={`≤ ${formatDecimal(thresholds.gruen_max)} °C`} />
           <BreakdownRow
             label="Gelb"
-            value={`> ${thresholds.gruen_max.toFixed(1)} – ${thresholds.gelb_max.toFixed(1)} °C`}
+            value={`> ${formatDecimal(thresholds.gruen_max)} – ${formatDecimal(thresholds.gelb_max)} °C`}
           />
           <BreakdownRow
             label="Orange"
-            value={`> ${thresholds.gelb_max.toFixed(1)} – ${thresholds.orange_max.toFixed(1)} °C`}
+            value={`> ${formatDecimal(thresholds.gelb_max)} – ${formatDecimal(thresholds.orange_max)} °C`}
           />
-          <BreakdownRow label="Rot" value={`> ${thresholds.orange_max.toFixed(1)} °C`} />
+          <BreakdownRow label="Rot" value={`> ${formatDecimal(thresholds.orange_max)} °C`} />
         </BreakdownSection>
       </div>
     </details>
@@ -1057,6 +1104,8 @@ function Panel({
 function AmpelBox({
   summary,
   peakHour,
+  uvIndex,
+  reviewLabel,
 }: {
   summary: {
     maxWbgt: number;
@@ -1068,9 +1117,14 @@ function AmpelBox({
     officialDecisionNote?: string;
   };
   peakHour: WBGTHour;
+  /** Höchster UV-Index während der Einheit; null = nicht verfügbar */
+  uvIndex: number | null;
+  /** Überschrift im Rückblick; null = normale Planungs-Überschrift */
+  reviewLabel: string | null;
 }) {
   const airTemp = peakHour.breakdown.temperature;
   const source = sourcesRegistry[summary.recommendationQuelleId];
+  const uvHint = uvIndex !== null ? uvAdvice(uvIndex) : null;
 
   return (
     <section
@@ -1082,7 +1136,7 @@ function AmpelBox({
       <div className="mt-1 flex flex-wrap items-end gap-x-5 gap-y-1">
         <p className="flex items-baseline gap-2">
           <span className="text-5xl font-extrabold tracking-tight tabular-nums">
-            {summary.maxWbgt.toFixed(1)}
+            {formatDecimal(summary.maxWbgt)}
           </span>
           <span className="inline-flex items-baseline gap-1 text-xl font-bold">
             °C WBGT
@@ -1090,11 +1144,24 @@ function AmpelBox({
           </span>
         </p>
         <p className="flex items-baseline gap-1.5 pb-1">
-          <span className="text-2xl font-extrabold tabular-nums">{airTemp.toFixed(1)}</span>
+          <span className="text-2xl font-extrabold tabular-nums">{formatDecimal(airTemp)}</span>
           <span className="text-sm font-bold opacity-80">°C Luft</span>
         </p>
       </div>
-      <p className="mt-3 text-base leading-snug font-bold">{summary.recommendationLabel}</p>
+      {uvIndex !== null && uvIndex >= 0.5 ? (
+        <p className="mt-1 text-sm leading-snug font-semibold opacity-90">
+          UV-Index {Math.round(uvIndex)} ({uvCategory(uvIndex)})
+          {uvHint ? ` – ${uvHint}` : ""}
+        </p>
+      ) : null}
+      <p className="mt-3 text-base leading-snug font-bold">
+        {reviewLabel ?? summary.recommendationLabel}
+      </p>
+      {reviewLabel ? (
+        <p className="mt-1 text-xs font-bold tracking-wider uppercase opacity-80">
+          Für solche Bedingungen gilt
+        </p>
+      ) : null}
       <p className="mt-1 text-sm leading-snug font-medium opacity-90">
         {summary.hauptempfehlung}
       </p>
@@ -1133,6 +1200,36 @@ function ReviewNotice({ date }: { date: string }) {
         Die Werte stammen aus archivierten Wettermodelldaten (Open-Meteo), nicht aus
         einer Messung vor Ort. Sie zeigen, wie die Einheit nach heutigem Stand
         eingestuft worden wäre – als Einordnung, nicht als Nachweis.
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Amtliche Hitzewarnung des DWD für den Zeitraum der Einheit. Steht neben der
+ * Ampel, nicht an ihrer Stelle: die Warnung gilt für die Allgemeinbevölkerung
+ * und die ganze Region, die Ampel für diese Einheit an diesem Platz.
+ */
+function HeatWarningNotice({ warning }: { warning: HeatWarning }) {
+  return (
+    <p className="mb-4 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm leading-snug text-red-900">
+      <Siren className="mt-0.5 size-4 shrink-0 text-red-600" aria-hidden />
+      <span>
+        <strong className="font-bold">
+          Amtliche Hitzewarnung des DWD, Stufe {warning.level} (
+          {warning.level === 2 ? "extreme" : "starke"} Wärmebelastung).
+        </strong>{" "}
+        Sie gilt für diesen Zeitraum und die ganze Region. Hitzeschutzpläne im Sport
+        knüpfen ihre Maßnahmen an diese Stufen – die Ampel unten bewertet zusätzlich
+        Sportart, Gruppe und Platz.{" "}
+        <a
+          href="https://www.dwd.de/DE/wetter/warnungen_gemeinden/warnWetter_node.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold underline underline-offset-2"
+        >
+          Warnlage beim DWD
+        </a>
       </span>
     </p>
   );

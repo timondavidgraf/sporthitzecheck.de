@@ -679,8 +679,13 @@ export function formatWbgtNumber(value: number): string {
   return `${value.toFixed(1).replace(".", ",")} °C`;
 }
 
+/** Zahl mit Dezimalkomma, z. B. 27,2 – für alle Anzeigen in der Oberfläche. */
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toFixed(digits).replace(".", ",");
+}
+
 function formatDeg(value: number): string {
-  return value.toFixed(1).replace(".", ",");
+  return formatDecimal(value);
 }
 
 export function getSurfaceConfig(sport: Sport, surface: Surface): UntergrundConfig {

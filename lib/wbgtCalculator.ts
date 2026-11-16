@@ -51,6 +51,10 @@ export interface WeatherApiResponse {
     wind_speed_10m: number[];
     direct_radiation_instant: number[];
     diffuse_radiation_instant: number[];
+    /** Direktstrahlung senkrecht zur Sonne; fehlt in älteren Cache-Einträgen */
+    direct_normal_irradiance_instant?: (number | null)[];
+    /** UV-Index; im Archiv nicht für jeden Zeitraum vorhanden */
+    uv_index?: (number | null)[];
   };
 }
 
@@ -64,8 +68,12 @@ export interface WBGTBreakdown {
   wind: number;
   /** Wind auf 2 m Höhe (FAO-56) – die Höhe, für die WBGT-Modelle kalibriert sind */
   wind2m: number;
-  /** Open-Meteo: Direktstrahlung in W/m² */
+  /** Open-Meteo: Direktstrahlung auf die waagerechte Fläche in W/m² */
   directRadiation: number;
+  /** Open-Meteo: Direktstrahlung senkrecht zur Sonne (DNI) in W/m²; null = nicht geliefert */
+  directNormal: number | null;
+  /** Direktanteil, mit dem die Schwarzkugel rechnet (DNI × sin 60°, sonst Gdir) */
+  globeDirect: number;
   /** Open-Meteo: diffuse Himmelsstrahlung in W/m² */
   diffuseRadiation: number;
 
@@ -88,7 +96,7 @@ export interface WBGTBreakdown {
   naturalWetBulbUnshaded: number;
   /** Natürliche Feuchtkugel Tnw nach Beschattung */
   naturalWetBulbShaded: number;
-  /** 0.8·Gdir + 0.4·Gdif ohne Beschattung */
+  /** 0.8·Direktanteil der Kugel + 0.4·Gdif ohne Beschattung */
   solarUnshaded: number;
   /** dieselbe Solarlast mit beschatteter Strahlung */
   solarShaded: number;
@@ -127,6 +135,8 @@ export interface WBGTHour {
   timestamp: string;
   /** Finaler WBGT-Wert in °C, auf eine Nachkommastelle gerundet */
   wbgtValue: number;
+  /** UV-Index der Stunde; null, wenn Open-Meteo keinen liefert */
+  uvIndex: number | null;
   colorCode: ColorCode;
   recommendationLabel: string;
   recommendationPoints: string[];
@@ -178,6 +188,8 @@ const HOURLY_PARAMS = [
   'wind_speed_10m',
   'direct_radiation_instant',
   'diffuse_radiation_instant',
+  'direct_normal_irradiance_instant',
+  'uv_index',
 ] as const;
 
 /** Cache-Lebensdauer: 60 Minuten */
@@ -185,10 +197,10 @@ export const CACHE_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Versionsnummer im Key: aendert sich die Form der Antwort (v2: Vortag per
- * `past_days=1`, v3: Strahlung als Momentanwert), passen alte Eintraege nicht
- * mehr – die Version invalidiert sie schlagartig.
+ * `past_days=1`, v3: Strahlung als Momentanwert, v4: DNI und UV-Index), passen
+ * alte Eintraege nicht mehr – die Version invalidiert sie schlagartig.
  */
-const CACHE_PREFIX = 'wbgt_cache_v3_';
+const CACHE_PREFIX = 'wbgt_cache_v4_';
 
 /** Anteil von Direktstrahlung und Untergrund-Offset, der bei der Beschattung wirkt. */
 export const SHADOW_FACTORS: Record<Shadow, number> = {
@@ -263,6 +275,23 @@ export const NWB_CONST = 0.20249;
 /** Solarlast auf die Schwarzkugel: Direktstrahlung zaehlt staerker als diffus */
 export const SOLAR_DIRECT_WEIGHT = 0.8;
 export const SOLAR_DIFFUSE_WEIGHT = 0.4;
+
+/**
+ * Sonnenhoehe, auf die der Direktanteil der Schwarzkugel normiert ist.
+ *
+ * Eine Kugel faengt die Sonne unabhaengig vom Sonnenstand ein; die
+ * Direktstrahlung auf die waagerechte Flaeche (Gdir) schrumpft dagegen mit
+ * tiefer Sonne. Frueher rechnete die Kugel mit Gdir und lag morgens und abends
+ * zu niedrig. Jetzt zaehlt die Strahlung senkrecht zur Sonne (DNI), mit
+ * sin(60°) so skaliert, dass sich bei hoher Sommersonne nichts aendert.
+ *
+ * Vergleich mit dem Referenzverfahren (Liljegren 2008, eigene Nachrechnung,
+ * Sommer 2025, vier Orte in Deutschland, Stunden ab 22 °C bei Tageslicht):
+ * mittlere Abweichung des WBGT von −0,8 auf −0,5 °C, um 8 Uhr von −2,1 auf
+ * −1,2 °C; abends liegt die App jetzt bis 0,8 °C darueber (sichere Seite).
+ */
+export const SOLAR_REFERENCE_ELEVATION_DEG = 60;
+export const SOLAR_REFERENCE_SIN = Math.sin((SOLAR_REFERENCE_ELEVATION_DEG * Math.PI) / 180);
 
 /** Tg-Zuschlag: 0.045 · Solar / (1 + Wind), gedeckelt */
 export const GLOBE_SOLAR_COEF = 0.045;
@@ -613,6 +642,20 @@ function solarLoad(directRadiation: number, diffuseRadiation: number): number {
 }
 
 /**
+ * Direktanteil fuer die Schwarzkugel: DNI × sin(60°). Fehlt die DNI (alter
+ * Cache, Luecke im Archiv), bleibt es bei der waagerechten Direktstrahlung.
+ */
+export function globeDirectRadiation(
+  directHorizontal: number,
+  directNormal: number | null | undefined
+): number {
+  if (typeof directNormal === 'number' && Number.isFinite(directNormal) && directNormal > 0) {
+    return directNormal * SOLAR_REFERENCE_SIN;
+  }
+  return Math.max(0, directHorizontal ?? 0);
+}
+
+/**
  * Naeherung der Schwarzkugeltemperatur: Strahlung heizt die Kugel auf, Wind kuehlt sie.
  * Der Zuschlag ist auf {@link GLOBE_DELTA_MAX} K begrenzt (Plausibilitaetsgrenze bei Windstille).
  */
@@ -753,6 +796,12 @@ export function calculateWBGTForecast(
     const wind = hourly.wind_speed_10m[i];
     const direct = hourly.direct_radiation_instant[i];
     const diffuse = hourly.diffuse_radiation_instant[i];
+    const dniRaw = hourly.direct_normal_irradiance_instant?.[i];
+    const directNormal =
+      typeof dniRaw === 'number' && Number.isFinite(dniRaw) ? dniRaw : null;
+    const globeDirect = globeDirectRadiation(direct, directNormal);
+    const uvRaw = hourly.uv_index?.[i];
+    const uvIndex = typeof uvRaw === 'number' && Number.isFinite(uvRaw) ? uvRaw : null;
 
     const effectiveDirect = direct * shadowFactor;
     const effectiveDiffuse = diffuse * diffuseFactor;
@@ -773,8 +822,11 @@ export function calculateWBGTForecast(
       globalShaded,
       wind2m
     );
-    const solarUnshaded = solarLoad(direct, diffuse);
-    const solarShaded = solarLoad(effectiveDirect, effectiveDiffuse);
+    // Die Kugel rechnet mit dem sonnenstandsunabhaengigen Direktanteil; die
+    // natuerliche Feuchtkugel bleibt bei der Globalstrahlung, auf die ihre
+    // Regression kalibriert ist.
+    const solarUnshaded = solarLoad(globeDirect, diffuse);
+    const solarShaded = solarLoad(globeDirect * shadowFactor, effectiveDiffuse);
     const unshadedGlobe = globeFromSolar(temp, solarUnshaded, wind2m);
     const shadedGlobe = globeFromSolar(temp, solarShaded, wind2m);
 
@@ -818,6 +870,7 @@ export function calculateWBGTForecast(
     forecast.push({
       timestamp,
       wbgtValue,
+      uvIndex,
       colorCode,
       recommendationLabel: recommendation.headline,
       recommendationPoints: recommendation.stichpunkte,
@@ -831,6 +884,8 @@ export function calculateWBGTForecast(
         wind,
         wind2m,
         directRadiation: direct,
+        directNormal,
+        globeDirect,
         diffuseRadiation: diffuse,
         shadowFactor,
         diffuseFactor,

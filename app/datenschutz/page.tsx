@@ -128,13 +128,23 @@ export default function DatenschutzPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-slate-900">6. Wetterdaten (Open-Meteo)</h2>
+        <h2 className="text-base font-bold text-slate-900">
+          6. Wetterdaten (Open-Meteo) und Hitzewarnungen (Bright Sky)
+        </h2>
         <p className="mt-1.5">
           Für die WBGT-Näherung werden Koordinaten an die API von Open-Meteo
           übermittelt. Open-Meteo erhält den Standort als geographische Koordinate
           sowie den Zeitraum der Abfrage, nicht den eingegebenen Vereinsnamen.
           Für vergangene Termine (Rückblick) geht dieselbe Abfrage an das
           Modell-Archiv von Open-Meteo (historical-forecast-api.open-meteo.com).
+          Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+        </p>
+        <p className="mt-1.5">
+          Liegt die Einheit heute oder in den nächsten Tagen, fragt die App
+          zusätzlich die amtlichen Hitzewarnungen des Deutschen Wetterdienstes
+          über den Dienst Bright Sky (api.brightsky.dev) ab. Übermittelt werden
+          dabei die auf zwei Nachkommastellen gerundeten Koordinaten (rund ein
+          Kilometer genau) und, wie bei jedem Abruf, Ihre IP-Adresse.
           Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
         </p>
       </section>

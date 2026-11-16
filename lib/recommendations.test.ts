@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDisplayRecommendation } from "./recommendations";
+import { getDisplayRecommendation, reviewHeadline } from "./recommendations";
 import { eventTypeFromIntensity } from "./sportsConfig";
 
 const joined = (points: string[]) => points.join(" | ");
@@ -63,5 +63,18 @@ describe("Überschriften", () => {
   it("lässt nachts den Sonnenschutz weg", () => {
     const rec = getDisplayRecommendation("jogging", "green", "training", 18, false);
     expect(joined(rec.stichpunkte)).not.toMatch(/Sonnenschutz/);
+  });
+});
+
+describe("Rückblick", () => {
+  it("formuliert vergangene Einheiten als Einordnung, nicht als Anweisung", () => {
+    expect(reviewHeadline("green", "training", "football")).toBe(
+      "Training war aus Hitzesicht unkritisch"
+    );
+    expect(reviewHeadline("red", "match", "football")).toBe(
+      "Spiel: Absage oder Verlegung wäre empfohlen gewesen"
+    );
+    expect(reviewHeadline("orange", "match", "jogging")).toMatch(/^Wettkampf: deutliche/);
+    expect(reviewHeadline("yellow", "mixed", "tennis")).toMatch(/^Einheit: Anpassungen/);
   });
 });

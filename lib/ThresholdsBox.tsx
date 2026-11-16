@@ -21,6 +21,7 @@ import {
   ageThresholdOffset,
   appliedBounds,
   baseBoundsForSport,
+  formatDecimal,
   formatOffset,
   sportConfidence,
   thresholdSourceShort,
@@ -53,9 +54,9 @@ function rangeLabel(
   code: ColorCode,
   bounds: { gruen_max: number; gelb_max: number; orange_max: number }
 ): string {
-  const g = bounds.gruen_max.toFixed(1);
-  const y = bounds.gelb_max.toFixed(1);
-  const o = bounds.orange_max.toFixed(1);
+  const g = formatDecimal(bounds.gruen_max);
+  const y = formatDecimal(bounds.gelb_max);
+  const o = formatDecimal(bounds.orange_max);
   if (code === "green") return `≤ ${g} °C`;
   if (code === "yellow") return `> ${g} – ${y} °C`;
   if (code === "orange") return `> ${y} – ${o} °C`;
@@ -202,12 +203,12 @@ export function ThresholdsBox({
 
       {sport === "tennis" && extraPauseAt != null && maxWbgt >= extraPauseAt && (
         <p className="mt-2 text-xs font-medium text-slate-700">
-          ITF-Richtwert für zusätzliche Pause erreicht ({extraPauseAt.toFixed(1)} °C)
+          ITF-Richtwert für zusätzliche Pause erreicht ({formatDecimal(extraPauseAt)} °C)
         </p>
       )}
       {sport === "tennis" && suspensionAt != null && maxWbgt >= suspensionAt && (
         <p className="mt-1 text-xs font-medium text-slate-700">
-          ITF-Suspension-Richtwert erreicht ({suspensionAt.toFixed(1)} °C)
+          ITF-Suspension-Richtwert erreicht ({formatDecimal(suspensionAt)} °C)
         </p>
       )}
 
@@ -313,8 +314,8 @@ function FifproNote({ alternative }: { alternative: AlternativeThresholds }) {
       <div className="border-t border-gray-200 px-2.5 py-2 text-xs leading-relaxed text-slate-600">
         <p>{source.kernaussage}</p>
         <p className="mt-1.5 font-medium text-slate-800 tabular-nums">
-          Cooling Break ab {alternative.cooling_break_ab.toFixed(1)} °C · Verlegung
-          empfohlen ab {alternative.verlegung_empfohlen_ab.toFixed(1)} °C
+          Cooling Break ab {formatDecimal(alternative.cooling_break_ab)} °C · Verlegung
+          empfohlen ab {formatDecimal(alternative.verlegung_empfohlen_ab)} °C
         </p>
       </div>
     </details>

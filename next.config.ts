@@ -12,7 +12,7 @@ const isDev = process.env.NODE_ENV === "development";
  * Turbopack zusätzlich `unsafe-eval`.
  *
  * Externe Ziele: Open-Meteo (Vorhersage und Modell-Archiv für den Rückblick,
- * direkt aus dem Browser) und der
+ * direkt aus dem Browser), Bright Sky (amtliche DWD-Hitzewarnungen) und der
  * OpenStreetMap-Embed. Sentry läuft über einen eigenen Pfad (`/monitoring`)
  * und gilt damit als same-origin. Die Besucherzählung braucht nichts im
  * Browser (proxy.ts, lib/besucherzaehlung.ts).
@@ -23,7 +23,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.open-meteo.com https://historical-forecast-api.open-meteo.com",
+  "connect-src 'self' https://api.open-meteo.com https://historical-forecast-api.open-meteo.com https://api.brightsky.dev",
   "frame-src https://www.openstreetmap.org",
   "form-action 'self'",
   "base-uri 'self'",

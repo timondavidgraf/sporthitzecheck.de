@@ -4,6 +4,8 @@ import {
   calculateWBGTForecast,
   findExactHourIndex,
   getColorCode,
+  globeDirectRadiation,
+  SOLAR_REFERENCE_SIN,
   hasCompleteHours,
   MAX_DISPLAY_HOURS,
   NWB_CONST,
@@ -274,5 +276,58 @@ describe("Rückblick", () => {
         endTime: "2026-08-12T16:00",
       })
     ).toBeNull();
+  });
+});
+
+describe("Tiefe Sonne", () => {
+  const SIN_60 = Math.sin(Math.PI / 3);
+
+  it("lässt die Kugel bei 60° Sonnenhöhe unverändert", () => {
+    // Bei 60° gilt Gdir = DNI × sin 60° – alt und neu müssen übereinstimmen
+    expect(globeDirectRadiation(700, 700 / SIN_60)).toBeCloseTo(700, 6);
+    expect(SOLAR_REFERENCE_SIN).toBeCloseTo(SIN_60, 10);
+  });
+
+  it("rechnet ohne DNI wie bisher mit der waagerechten Direktstrahlung", () => {
+    expect(globeDirectRadiation(300, null)).toBe(300);
+    expect(globeDirectRadiation(300, undefined)).toBe(300);
+    expect(globeDirectRadiation(300, 0)).toBe(300);
+    expect(globeDirectRadiation(-5, null)).toBe(0);
+  });
+
+  it("hebt den WBGT bei tiefer Sonne an, nicht bei hoher", () => {
+    // 25° Sonnenhöhe: DNI 500 W/m² ergibt nur rund 211 W/m² auf der Waagerechten
+    const lowSun = { direct: 211, dni: 500 };
+    const without = weather({ direct_radiation_instant: () => lowSun.direct });
+    const withDni = weather({ direct_radiation_instant: () => lowSun.direct });
+    withDni.hourly.direct_normal_irradiance_instant = withDni.hourly.time.map(() => lowSun.dni);
+
+    const before = calculateWBGTForecast(without, BASE)[0];
+    const after = calculateWBGTForecast(withDni, BASE)[0];
+    expect(after.wbgtValue).toBeGreaterThan(before.wbgtValue);
+    expect(after.breakdown.globeDirect).toBeCloseTo(500 * SIN_60, 6);
+    // Die natürliche Feuchtkugel bleibt bei der Globalstrahlung
+    expect(after.breakdown.naturalWetBulbUnshaded).toBe(before.breakdown.naturalWetBulbUnshaded);
+
+    const highSun = weather();
+    highSun.hourly.direct_normal_irradiance_instant = highSun.hourly.time.map(() => 700 / SIN_60);
+    expect(calculateWBGTForecast(highSun, BASE)[0].wbgtValue).toBe(
+      calculateWBGTForecast(weather(), BASE)[0].wbgtValue
+    );
+  });
+
+  it("beschattet auch den DNI-Anteil", () => {
+    const data = weather();
+    data.hourly.direct_normal_irradiance_instant = data.hourly.time.map(() => 800);
+    const full = calculateWBGTForecast(data, { ...BASE, shadow: "full" })[0];
+    expect(full.breakdown.solarShaded).toBeCloseTo(0.4 * 150 * 0.25, 6);
+  });
+
+  it("reicht den UV-Index durch und übersteht Lücken", () => {
+    const data = weather();
+    data.hourly.uv_index = data.hourly.time.map((_, i) => (i === 14 ? 6.4 : null));
+    const hours = calculateWBGTForecast(data, { ...BASE, contextHours: 0 });
+    expect(hours.map((h) => h.uvIndex)).toEqual([6.4, null]);
+    expect(calculateWBGTForecast(weather(), BASE)[0].uvIndex).toBeNull();
   });
 });

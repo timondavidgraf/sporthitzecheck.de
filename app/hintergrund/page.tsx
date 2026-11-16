@@ -291,6 +291,39 @@ export default function HintergrundPage() {
       </section>
 
       <section className="flex flex-col gap-2">
+        <h2 className="text-base font-bold text-slate-900">
+          Hitzeschutzplan, DWD-Warnung und UV-Index
+        </h2>
+        <p>
+          Das Bundesgesundheitsministerium hat 2025 gemeinsam mit dem DOSB und der
+          Deutschen Allianz Klimawandel und Gesundheit einen{" "}
+          <a
+            href="https://www.bundesgesundheitsministerium.de/fileadmin/Dateien/3_Downloads/H/Hitzeschutzplan/Bundesempfehlung_Musterhitzeschutzplan_Sport_BMG_Layout_bf.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold underline underline-offset-2"
+          >
+            Musterhitzeschutzplan für den organisierten Sport
+          </a>{" "}
+          veröffentlicht. Er knüpft Maßnahmen an die amtlichen Hitzewarnungen des
+          Deutschen Wetterdienstes – Stufe 1 (starke Wärmebelastung) und Stufe 2
+          (extreme Wärmebelastung) – und empfiehlt Vereinen und Verbänden einen
+          sportart- und sportstättenspezifischen Maßnahmenkatalog, klare
+          Absagekriterien und eine Auswertung des vergangenen Sommers.
+        </p>
+        <p>
+          Die App ergänzt das an drei Stellen. Gilt für den gewählten Zeitraum eine
+          DWD-Hitzewarnung, steht sie über der Ampel; die Warnung gilt für die ganze
+          Region und alle Menschen, die Ampel bewertet zusätzlich Sportart, Gruppe
+          und Platz. Der UV-Index steht neben dem WBGT, weil Sonnenbrand und
+          Hitzebelastung zwei verschiedene Risiken sind – ein kühler, klarer Tag kann
+          hohe UV-Werte haben. Und der Rückblick zeigt für vergangene Termine, wie
+          eine Einheit eingestuft worden wäre: als Grundlage für die Auswertung, die
+          der Plan vorsieht.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-2">
         <h2 className="text-base font-bold text-slate-900">Was daraus folgt</h2>
         <p>
           Die App liefert eine nachvollziehbare Zahl, ihre Herkunft und eine
