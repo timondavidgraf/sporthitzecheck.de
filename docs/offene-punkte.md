@@ -55,11 +55,16 @@ aktiviert). Prüfen, ob die Suche live funktioniert.
 Das Limit im Code (`app/api/geocode/route.ts`) liegt im Arbeitsspeicher und gilt
 auf Vercel nur pro Instanz; die Origin-Prüfung lässt sich mit gefälschten
 Headern umgehen. Wirksamer Schutz gegen Google-Kosten ist eine Firewall-Regel
-(Hobby-Plan: eine Rate-Limit-Regel kostenlos), nur im Dashboard einrichtbar:
+(Hobby-Plan: bis zu drei Rate-Limit-Regeln kostenlos), nur im Dashboard
+einrichtbar.
 
-- Projekt → **Firewall** → **Configure** → **+ New Rule**
+**Erledigt am 16.11.2026:** Regel „Rate-Limit Ortssuche“ ist in der
+Vercel-Firewall aktiv.
+
 - Bedingung: *Request Path* beginnt mit `/api/geocode`
-- Aktion: **Rate Limit**, Fixed Window, 60 s, 30 Anfragen, Schlüssel **IP**
-- **Review Changes** → **Publish** (kein neues Deployment nötig)
+- Aktion: **Rate Limit**, Fixed Window, 60 s, 30 Anfragen, Schlüssel **IP**,
+  Antwort 429
+- Ändern: Projekt → **Firewall** → **Rules** → Regel bearbeiten →
+  **Review Changes** → **Publish** (kein neues Deployment nötig)
 
-Zusätzlich ein Budget-Alarm im Google-Billing-Konto.
+**Noch offen:** ein Budget-Alarm im Google-Billing-Konto.
