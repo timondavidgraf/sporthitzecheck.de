@@ -133,6 +133,8 @@ export default function DatenschutzPage() {
           Für die WBGT-Näherung werden Koordinaten an die API von Open-Meteo
           übermittelt. Open-Meteo erhält den Standort als geographische Koordinate
           sowie den Zeitraum der Abfrage, nicht den eingegebenen Vereinsnamen.
+          Für vergangene Termine (Rückblick) geht dieselbe Abfrage an das
+          Modell-Archiv von Open-Meteo (historical-forecast-api.open-meteo.com).
           Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
         </p>
       </section>

@@ -29,6 +29,7 @@ import {
   Users,
 } from "lucide-react";
 import {
+  EARLIEST_REVIEW_DATE,
   MAX_SESSION_HOURS,
   type AgeBand,
   type PerformanceLevel,
@@ -173,9 +174,15 @@ function roundEndInput(value: string): string {
   return `${pad(Math.floor(rounded / 60))}:${pad(rounded % 60)}`;
 }
 
-/** Untere Grenze: heute – rückwärts liegt keine Vorhersage vor. */
+/** Untere Grenze: so weit reicht das Modell-Archiv für den Rückblick zurück. */
 function minStartDate(): string {
-  return toDateValue(new Date());
+  return EARLIEST_REVIEW_DATE;
+}
+
+/** Liegt der Tag vor heute? Dann wertet die Ergebnisseite Archivdaten aus. */
+function isPastDate(startTime: string): boolean {
+  const date = startDatePart(startTime);
+  return date !== "" && date < toDateValue(new Date());
 }
 
 function maxStartDate(): string {
@@ -312,7 +319,8 @@ function isClock(value: unknown): value is string {
 
 /**
  * Gespeicherte Uhrzeit und Dauer behalten. Nur das Datum rücken wir nach vorn,
- * wenn es in der Vergangenheit liegt – rückwärts gibt es keine Vorhersage.
+ * wenn es in der Vergangenheit liegt: wer die Seite neu öffnet, plant in der
+ * Regel die nächste Einheit. Ein Rückblick wird bewusst neu gewählt.
  */
 function restoredSchedule(
   saved: Pick<FormState, "startTime" | "endTime" | "sport" | "intensity">
@@ -941,6 +949,12 @@ export default function HomePage() {
               onChange={(e) => changeDate(e.target.value)}
               className={CONTROL_CLASS}
             />
+            {hydrated && isPastDate(form.startTime) ? (
+              <p className="mt-1.5 text-xs leading-snug text-slate-500">
+                Rückblick: Für vergangene Tage rechnet die App mit archivierten
+                Modelldaten, nicht mit einer Messung vor Ort.
+              </p>
+            ) : null}
           </FormField>
 
           <FormField id="start" label="Beginn" icon={<Clock className="size-4" />}>

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildCacheKey,
   calculateWBGTForecast,
   findExactHourIndex,
   getColorCode,
+  hasCompleteHours,
   MAX_DISPLAY_HOURS,
   NWB_CONST,
   NWB_DEPRESSION_COEF,
@@ -11,6 +13,7 @@ import {
   sessionHourStamps,
   shiftStampByDays,
   summarizeSession,
+  weatherRequestFor,
   WATERING_COOLING,
   WIND_10M_TO_2M,
   windAt2m,
@@ -203,5 +206,73 @@ describe("Ampel", () => {
     expect(getColorCode(26.9, "jogging", "senior", "normal", "recreational")).toBe("red");
     expect(getColorCode(27.8, "jogging", "youth", "normal", "recreational")).toBe("orange");
     expect(getColorCode(27.8, "jogging", "adult", "normal", "elite")).toBe("orange");
+  });
+});
+
+describe("Rückblick", () => {
+  const now = new Date(2026, 10, 16, 15, 0); // 16.11.2026, 15:00 Ortszeit
+
+  it("fragt für vergangene Tage das Archiv mit einem Tag Rand ab", () => {
+    expect(weatherRequestFor("2025-07-02T18:00", now)).toEqual({
+      kind: "review",
+      startDate: "2025-07-01",
+      endDate: "2025-07-03",
+    });
+  });
+
+  it("legt das Archiv-Fenster korrekt über Monats- und Jahresgrenzen", () => {
+    expect(weatherRequestFor("2025-01-01T10:00", now)).toEqual({
+      kind: "review",
+      startDate: "2024-12-31",
+      endDate: "2025-01-02",
+    });
+  });
+
+  it("nutzt gestern schon das Archiv, heute und morgen die Vorhersage", () => {
+    expect(weatherRequestFor("2026-11-15T18:00", now).kind).toBe("review");
+    // Auch wenn die Uhrzeit heute schon vorbei ist: Vorhersage-API mit past_days
+    expect(weatherRequestFor("2026-11-16T08:00", now).kind).toBe("forecast");
+    expect(weatherRequestFor("2026-11-17T18:00", now).kind).toBe("forecast");
+    expect(weatherRequestFor(undefined, now).kind).toBe("forecast");
+  });
+
+  it("trennt Vorhersage und Rückblick im Cache", () => {
+    const forecast = buildCacheKey(48, 7.85, { kind: "forecast", forecastDays: 2 });
+    const review = buildCacheKey(48, 7.85, {
+      kind: "review",
+      startDate: "2025-07-01",
+      endDate: "2025-07-03",
+    });
+    const otherDay = buildCacheKey(48, 7.85, {
+      kind: "review",
+      startDate: "2025-07-02",
+      endDate: "2025-07-04",
+    });
+    expect(new Set([forecast, review, otherDay]).size).toBe(3);
+  });
+
+  it("erkennt Lücken im Archiv und liefert dann keinen Tageswert", () => {
+    const data = weather();
+    expect(hasCompleteHours(data, 14, 15)).toBe(true);
+    expect(hasCompleteHours(data, -1, 15)).toBe(false);
+
+    (data.hourly.relative_humidity_2m as (number | null)[])[15] = null;
+    expect(hasCompleteHours(data, 14, 15)).toBe(false);
+    expect(hasCompleteHours(data, 13, 14)).toBe(true);
+
+    const { surface, shadow, watered, ageGroup, performanceLevel, sport, intensity } = BASE;
+    expect(
+      summarizeSession(data, {
+        surface,
+        shadow,
+        watered,
+        ageGroup,
+        performanceLevel,
+        sport,
+        intensity,
+        startTime: "2026-08-12T14:00",
+        endTime: "2026-08-12T16:00",
+      })
+    ).toBeNull();
   });
 });

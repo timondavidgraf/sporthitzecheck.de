@@ -150,6 +150,24 @@ interface CacheEntry {
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 
 /**
+ * Archiv der Vorhersagemodelle fuer den Rueckblick. Gleiche Parameter und
+ * gleiches Antwortformat wie die Vorhersage-API, nur ein anderer Host und ein
+ * festes Datumsfenster statt `forecast_days`.
+ *
+ * Bewusst nicht `past_days` der Vorhersage-API: die reicht zwar 92 Tage
+ * zurueck, lieferte im Test (16.11.2026) aber fuer die aeltesten rund 25 Tage
+ * nur Leerwerte.
+ */
+const OPEN_METEO_REVIEW_URL = 'https://historical-forecast-api.open-meteo.com/v1/forecast';
+
+/**
+ * Fruehester Tag fuer den Rueckblick. Open-Meteo archiviert die Modelle ab
+ * 2022; das hochaufgeloeste ICON-D2 (ca. 2 km) erst ab dem 24.11.2022 – davor
+ * stammen die Werte aus groeberen Modellen.
+ */
+export const EARLIEST_REVIEW_DATE = '2022-01-01';
+
+/**
  * Strahlung als Momentanwert (`*_instant`): Die Standardfelder von Open-Meteo
  * sind Mittelwerte der VORANGEHENDEN Stunde und hinken der Temperatur damit
  * eine halbe Stunde hinterher – vormittags zu wenig, nachmittags zu viel Sonne.
@@ -321,16 +339,49 @@ export function forecastDaysFor(startTime?: Date | string): number {
   return Math.min(MAX_FORECAST_DAYS, Math.max(fallback, daysAhead + 2));
 }
 
+/** Welche Open-Meteo-Abfrage ein Startzeitpunkt braucht. */
+export type WeatherRequest =
+  | { kind: 'forecast'; forecastDays: number }
+  | { kind: 'review'; startDate: string; endDate: string };
+
+/**
+ * Vergangene Tage kommen aus dem Modell-Archiv, heute und die Zukunft aus der
+ * Vorhersage. Das Archiv-Fenster reicht einen Tag vor und einen Tag nach der
+ * Einheit – fuer den Vergleich mit Vortag und Folgetag und fuer
+ * Kontextstunden ueber Mitternacht.
+ */
+export function weatherRequestFor(
+  startTime?: Date | string,
+  now: Date = new Date()
+): WeatherRequest {
+  if (startTime) {
+    const day = localHourStamp(startTime).slice(0, 10);
+    const today = localHourStamp(now).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(day) && day < today) {
+      return {
+        kind: 'review',
+        startDate: shiftStampByDays(day, -1).slice(0, 10),
+        endDate: shiftStampByDays(day, 1).slice(0, 10),
+      };
+    }
+  }
+  return { kind: 'forecast', forecastDays: forecastDaysFor(startTime) };
+}
+
 /**
  * Cache-Key. Koordinaten werden auf 4 Nachkommastellen (~11 m) gerundet, damit
  * minimal abweichende GPS-Werte nicht bei jedem Aufruf einen neuen Key erzeugen.
  *
- * Die Anzahl der Vorhersagetage gehört in den Key: sonst würde eine zuvor
+ * Der Zeitraum (Vorhersagetage bzw. Archiv-Fenster) gehört in den Key: sonst würde eine zuvor
  * gecachte 2-Tage-Antwort für eine Anfrage in 5 Tagen wiederverwendet und die
  * gesuchte Stunde fehlte in den Daten.
  */
-export function buildCacheKey(lat: number, lng: number, forecastDays: number): string {
-  return `${CACHE_PREFIX}${lat.toFixed(4)}_${lng.toFixed(4)}_${forecastDays}d`;
+export function buildCacheKey(lat: number, lng: number, request: WeatherRequest): string {
+  const span =
+    request.kind === 'forecast'
+      ? `${request.forecastDays}d`
+      : `${request.startDate}_${request.endDate}`;
+  return `${CACHE_PREFIX}${lat.toFixed(4)}_${lng.toFixed(4)}_${span}`;
 }
 
 function readCache(key: string): WeatherApiResponse | null {
@@ -404,6 +455,7 @@ function writeCache(key: string, data: WeatherApiResponse): void {
  * @param forceRefresh true = Cache ignorieren, frisch laden und Cache ueberschreiben.
  * @param startTime    Gewuenschter Startzeitpunkt; bestimmt, wie weit die
  *                     Vorhersage reichen muss. Ohne Angabe: heute + morgen.
+ *                     Liegt er vor heute, kommt die Antwort aus dem Archiv.
  */
 export async function fetchWeatherData(
   lat: number,
@@ -411,23 +463,28 @@ export async function fetchWeatherData(
   forceRefresh = false,
   startTime?: Date | string
 ): Promise<WeatherApiResponse> {
-  const forecastDays = forecastDaysFor(startTime);
-  const cacheKey = buildCacheKey(lat, lng, forecastDays);
+  const request = weatherRequestFor(startTime);
+  const cacheKey = buildCacheKey(lat, lng, request);
 
   if (!forceRefresh) {
     const cached = readCache(cacheKey);
     if (cached) return cached;
   }
 
-  const url = new URL(OPEN_METEO_URL);
+  const url = new URL(request.kind === 'review' ? OPEN_METEO_REVIEW_URL : OPEN_METEO_URL);
   url.searchParams.set('latitude', String(lat));
   url.searchParams.set('longitude', String(lng));
   url.searchParams.set('hourly', HOURLY_PARAMS.join(','));
   url.searchParams.set('wind_speed_unit', 'ms'); // Berechnung erwartet m/s
   url.searchParams.set('timezone', 'auto');
-  url.searchParams.set('forecast_days', String(forecastDays));
-  // Gestern mitladen – sonst fehlt der Vortag im Vergleich, wenn die Einheit heute ist
-  url.searchParams.set('past_days', '1');
+  if (request.kind === 'review') {
+    url.searchParams.set('start_date', request.startDate);
+    url.searchParams.set('end_date', request.endDate);
+  } else {
+    url.searchParams.set('forecast_days', String(request.forecastDays));
+    // Gestern mitladen – sonst fehlt der Vortag im Vergleich, wenn die Einheit heute ist
+    url.searchParams.set('past_days', '1');
+  }
 
   let response: Response;
   try {
@@ -468,6 +525,35 @@ export function findExactHourIndex(
   when: Date | string
 ): number {
   return apiData.hourly.time.indexOf(localHourStamp(when));
+}
+
+const REQUIRED_SERIES = [
+  'temperature_2m',
+  'relative_humidity_2m',
+  'wind_speed_10m',
+  'direct_radiation_instant',
+  'diffuse_radiation_instant',
+] as const;
+
+/**
+ * Liegen fuer alle Stunden von `fromIndex` bis `toIndex` echte Zahlen vor?
+ *
+ * Open-Meteo fuellt Luecken im Archiv mit `null`. Ohne diese Pruefung wuerde
+ * daraus ein WBGT von „NaN“ und eine gruene Ampel – lieber kein Ergebnis.
+ */
+export function hasCompleteHours(
+  apiData: WeatherApiResponse,
+  fromIndex: number,
+  toIndex: number
+): boolean {
+  if (fromIndex < 0 || toIndex < fromIndex) return false;
+  for (let i = fromIndex; i <= toIndex; i++) {
+    for (const key of REQUIRED_SERIES) {
+      const value = apiData.hourly[key]?.[i];
+      if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    }
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -879,6 +965,7 @@ export function summarizeSession(
   const sessionFromIndex = findExactHourIndex(apiData, from);
   const sessionToIndex = findExactHourIndex(apiData, to);
   if (sessionFromIndex === -1 || sessionToIndex === -1) return null;
+  if (!hasCompleteHours(apiData, sessionFromIndex, sessionToIndex)) return null;
 
   const hours = calculateWBGTForecast(apiData, {
     surface: params.surface,

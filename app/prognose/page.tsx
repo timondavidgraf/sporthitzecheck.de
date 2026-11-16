@@ -20,6 +20,7 @@ import {
   Check,
   ChevronDown,
   Droplets,
+  History,
   Loader2,
   MapPin,
   RotateCcw,
@@ -91,7 +92,9 @@ import {
   findExactHourIndex,
   getAmpelThresholds,
   getForecastSummary,
+  hasCompleteHours,
   CONTEXT_HOURS,
+  EARLIEST_REVIEW_DATE,
   GLOBE_DELTA_MAX,
   GLOBE_SOLAR_COEF,
   localHourStamp,
@@ -166,8 +169,15 @@ function clampEnd(startTime: string, endTime: string): string {
   return `${localHourStamp(latest).slice(0, 11)}${pad(latest.getHours())}:${pad(latest.getMinutes())}`;
 }
 
-const OUT_OF_RANGE_MESSAGE =
-  "Für diesen Zeitraum gibt es keine Vorhersage mehr oder noch keine. Wetterdaten reichen von gestern bis etwa zwei Wochen voraus – ältere geteilte Links lassen sich deshalb nicht mehr auswerten.";
+const OUT_OF_RANGE_MESSAGE = `Für diesen Zeitraum liegen keine Wetterdaten vor. Der Rückblick reicht bis ${formatFullDate(
+  EARLIEST_REVIEW_DATE
+)} zurück, die Vorhersage etwa zwei Wochen voraus.`;
+
+/** "2022-01-01" -> "01.01.2022" */
+function formatFullDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${d}.${m}.${y}`;
+}
 
 /** "2026-08-13" -> "Do., 13.08." */
 function formatDay(date: string): string {
@@ -210,6 +220,8 @@ type LoadState =
       status: "ready";
       forecast: WBGTHour[];
       hoursAhead: number;
+      /** Die Einheit ist bereits vorbei: Rückblick statt Prognose. */
+      isReview: boolean;
       comparison: DayComparison[];
     };
 
@@ -269,6 +281,12 @@ function RadarContent() {
         return;
       }
 
+      // Vor dem Archivbeginn gibt es nichts abzufragen – ohne Umweg über die API
+      if (startTime.slice(0, 10) < EARLIEST_REVIEW_DATE) {
+        if (!cancelled) setState({ status: "error", message: OUT_OF_RANGE_MESSAGE });
+        return;
+      }
+
       try {
         const data = await fetchWeatherData(lat, lng, false, startTime);
 
@@ -277,7 +295,12 @@ function RadarContent() {
         const { from, to } = sessionHourStamps(startTime, endTime);
         const sessionFromIndex = findExactHourIndex(data, from);
         const sessionToIndex = findExactHourIndex(data, to);
-        if (sessionFromIndex === -1 || sessionToIndex === -1) {
+        if (
+          sessionFromIndex === -1 ||
+          sessionToIndex === -1 ||
+          // Lücken im Archiv kommen als null – daraus darf keine Ampel entstehen
+          !hasCompleteHours(data, sessionFromIndex, sessionToIndex)
+        ) {
           if (!cancelled) setState({ status: "error", message: OUT_OF_RANGE_MESSAGE });
           return;
         }
@@ -296,6 +319,7 @@ function RadarContent() {
         });
 
         const hoursAhead = (new Date(startTime).getTime() - Date.now()) / HOUR_MS;
+        const isReview = new Date(endTime).getTime() < Date.now();
 
         // Gleicher Zeitraum am Vortag und am Folgetag – lohnt sich das Verschieben?
         const comparison: DayComparison[] = ([-1, 0, 1] as const).map((offset) => {
@@ -323,7 +347,7 @@ function RadarContent() {
           };
         });
 
-        if (!cancelled) setState({ status: "ready", forecast, hoursAhead, comparison });
+        if (!cancelled) setState({ status: "ready", forecast, hoursAhead, isReview, comparison });
       } catch (err) {
         const offline = typeof navigator !== "undefined" && !navigator.onLine;
         // Offline ist ein Nutzungszustand, kein Bug – den nicht als Fehler melden.
@@ -386,6 +410,7 @@ function RadarContent() {
 
   return (
     <PageShell>
+      {state.isReview && <ReviewNotice date={startTime.slice(0, 10)} />}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         <AmpelBox summary={summary} peakHour={peakHour} />
 
@@ -1091,6 +1116,25 @@ function AmpelBox({
         </p>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Kennzeichnet das Ergebnis als Rückblick. Die Empfehlungen in der Ampel sind
+ * für die Planung formuliert; der Hinweis ordnet sie für einen vergangenen
+ * Termin ein und sagt klar, dass keine Messung dahintersteht.
+ */
+function ReviewNotice({ date }: { date: string }) {
+  return (
+    <p className="mb-4 flex items-start gap-2 rounded-xl border border-slate-300 bg-slate-100 p-3 text-sm leading-snug text-slate-700">
+      <History className="mt-0.5 size-4 shrink-0 text-slate-500" aria-hidden />
+      <span>
+        <strong className="font-bold">Rückblick auf den {formatFullDate(date)}.</strong>{" "}
+        Die Werte stammen aus archivierten Wettermodelldaten (Open-Meteo), nicht aus
+        einer Messung vor Ort. Sie zeigen, wie die Einheit nach heutigem Stand
+        eingestuft worden wäre – als Einordnung, nicht als Nachweis.
+      </span>
+    </p>
   );
 }
 
