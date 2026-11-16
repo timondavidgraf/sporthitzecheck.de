@@ -51,10 +51,10 @@ export const sourcesRegistry: Record<SourceId, Source> = {
     organisation: "FIFA",
     url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10364156/",
     kernaussage:
-      "Vier Risikostufen: niedrig <24 °C, moderat 24–29 °C, hoch 30–32 °C, extrem >32 °C WBGT. Ab 32 °C sind Cooling Breaks in beiden Halbzeiten verpflichtend, Verlegung oder Abbruch liegt im Ermessen des Veranstalters.",
+      "Vier Risikostufen: niedrig <24 °C, moderat 24–29 °C, hoch 30–32 °C, extrem >32 °C WBGT. Über 32 °C sah die FIFA bisher Cooling Breaks in beiden Halbzeiten vor (etwa Minute 30 und 75); Verlegung oder Abbruch liegt im Ermessen des Veranstalters. Für die WM 2026 hat die FIFA das vereinfacht: drei Minuten Trinkpause nach 22 Minuten jeder Halbzeit, in jedem Spiel und unabhängig vom Wetter.",
     konfidenz: "hoch",
     einschraenkung:
-      "Gilt für Profi-/Länderspielbetrieb, nicht für Amateur-/Jugendfußball validiert. Die Richtlinie ist seit rund 20 Jahren unverändert und gilt in der Sportmedizin als weniger schützend als Vorgaben anderer Verbände (Racinais et al., BJSM 2023); FIFPRO fordert deutlich niedrigere Schwellen.",
+      "Gilt für Profi-/Länderspielbetrieb, nicht für Amateur-/Jugendfußball validiert. Die festen Trinkpausen hat die FIFA im Dezember 2025 für die WM 2026 angekündigt; ob sie auch in anderen Wettbewerben die 32-°C-Schwelle ersetzen, ist nicht belegt. Die vier Risikostufen sind seit rund 20 Jahren unverändert und gelten in der Sportmedizin als weniger schützend als Vorgaben anderer Verbände (Racinais et al., BJSM 2023); FIFPRO fordert deutlich niedrigere Schwellen.",
   },
   fifpro: {
     id: "fifpro",

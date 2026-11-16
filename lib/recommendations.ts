@@ -5,7 +5,7 @@
  * - Die Ampelfarbe ist um Alter, Leistung und Intensität verschoben. Die Texte
  *   zur Farbe beschreiben deshalb nur, was für DIESE Gruppe zu tun ist, und
  *   behaupten keinen Verbandsgrenzwert.
- * - Verbandsaussagen („FIFA-Pflicht ab 32 °C“) hängen am absoluten WBGT und
+ * - Verbandsaussagen („FIFA-Stufe ‚extrem‘ über 32 °C“) hängen am absoluten WBGT und
  *   erscheinen nur, wenn der Verbandswert tatsächlich erreicht ist.
  */
 
@@ -196,7 +196,7 @@ const RULES: Record<Sport, SportRules> = {
           { from: 30, text: "FIFA-Stufe „hoch“ (30–32 °C WBGT) erreicht" },
           {
             from: 32.1,
-            text: "FIFA-Stufe „extrem“ (über 32 °C WBGT): Cooling Breaks in beiden Halbzeiten sind im Spielbetrieb Pflicht",
+            text: "FIFA-Stufe „extrem“ (über 32 °C WBGT): nach der bisherigen FIFA-Regel Cooling Breaks in beiden Halbzeiten – für die WM 2026 legte die FIFA Trinkpausen in jedem Spiel fest, unabhängig von der Temperatur",
           },
         ],
       },
@@ -210,7 +210,7 @@ const RULES: Record<Sport, SportRules> = {
     ],
     belowOfficialRed: {
       from: 32.1,
-      text: `Die FIFA-Pflicht für Cooling Breaks gilt erst über 32 °C WBGT ${BELOW_OFFICIAL_SUFFIX}`,
+      text: `Die oberste FIFA-Stufe beginnt erst über 32 °C WBGT ${BELOW_OFFICIAL_SUFFIX}`,
     },
   },
   tennis: {

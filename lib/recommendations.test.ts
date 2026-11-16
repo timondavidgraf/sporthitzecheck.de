@@ -5,18 +5,21 @@ import { eventTypeFromIntensity } from "./sportsConfig";
 const joined = (points: string[]) => points.join(" | ");
 
 describe("Verbandsaussagen hängen am absoluten WBGT", () => {
-  it("behauptet bei verschobenem Rot keine FIFA-Pflicht", () => {
+  it("behauptet bei verschobenem Rot keine FIFA-Stufe", () => {
     // U16-Breitensport im Pflichtspiel: Rot schon ab 27,6 °C
     const rec = getDisplayRecommendation("football", "red", "match", 28.0);
     const text = joined(rec.stichpunkte) + rec.hauptempfehlung;
-    expect(text).not.toMatch(/FIFA-Stufe/);
+    // Keine erreichte Stufe („hoch“/„extrem“) – nur der Hinweis, wo die oberste beginnt
+    expect(text).not.toMatch(/FIFA-Stufe „/);
     expect(text).toMatch(/erst über 32 °C/);
     expect(text).toMatch(/FIFPRO empfiehlt ab 28 °C/);
   });
 
-  it("nennt die FIFA-Pflicht erst über 32 °C", () => {
+  it("nennt die oberste FIFA-Stufe erst über 32 °C und behauptet keine Pflicht", () => {
     const rec = getDisplayRecommendation("football", "red", "match", 32.5);
     expect(joined(rec.stichpunkte)).toMatch(/FIFA-Stufe „extrem“/);
+    expect(joined(rec.stichpunkte)).toMatch(/WM 2026/);
+    expect(joined(rec.stichpunkte)).not.toMatch(/Pflicht/);
     expect(joined(rec.stichpunkte)).not.toMatch(/erst über 32 °C/);
     expect(rec.quelle_id).toBe("fifa_2026");
   });

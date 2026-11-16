@@ -119,9 +119,11 @@ export default function HintergrundPage() {
           <li>
             <strong>Fußball:</strong> FIFA – vier Risikostufen (niedrig unter
             24&nbsp;°C, moderat 24–29&nbsp;°C, hoch 30–32&nbsp;°C, extrem über
-            32&nbsp;°C). Verpflichtende Cooling Breaks hängen erst an der obersten
-            Stufe. Die Richtlinie ist rund zwanzig Jahre alt und gilt in der
-            Sportmedizin als weniger schützend als die Vorgaben anderer Verbände;
+            32&nbsp;°C). Cooling Breaks sah die FIFA bisher erst in der obersten
+            Stufe vor; für die WM 2026 legte sie stattdessen Trinkpausen in jedem
+            Spiel fest, unabhängig von der Temperatur. Die Stufen sind rund
+            zwanzig Jahre alt und gelten in der Sportmedizin als weniger
+            schützend als die Vorgaben anderer Verbände;
             FIFPRO fordert Cooling Breaks ab 26 und Verlegung ab 28&nbsp;°C. Beide
             Sichtweisen stehen auf der Ergebnisseite.
           </li>

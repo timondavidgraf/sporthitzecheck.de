@@ -401,7 +401,7 @@ export const SPORTS: Record<Sport, SportDefinition> = {
       fallback: null,
       sourceId: "fifa_2026",
       interpolationNote:
-        "FIFA nutzt vier Risikokategorien (niedrig <24 °C, moderat 24–29 °C, hoch 30–32 °C, extrem >32 °C); unsere Ampel übernimmt sie eins zu eins. Nur die Lücke zwischen 29 und 30 °C wird geschlossen. Verpflichtende Cooling Breaks und die Empfehlung zur Verlegung hängen an der obersten Stufe (>32 °C) – die unteren Stufen beschreiben Risiko, keine FIFA-Pflichtmaßnahme.",
+        "FIFA nutzt vier Risikokategorien (niedrig <24 °C, moderat 24–29 °C, hoch 30–32 °C, extrem >32 °C); unsere Ampel übernimmt sie eins zu eins. Nur die Lücke zwischen 29 und 30 °C wird geschlossen. Cooling Breaks nach der bisherigen FIFA-Regel und die Empfehlung zur Verlegung hängen an der obersten Stufe (>32 °C) – die unteren Stufen beschreiben Risiko, keine FIFA-Pflichtmaßnahme. Für die WM 2026 legte die FIFA dagegen Trinkpausen in jedem Spiel fest, unabhängig von der Temperatur.",
       alternative: {
         sourceId: "fifpro",
         cooling_break_ab: 26.0,
