@@ -202,6 +202,9 @@ export const CACHE_TTL_MS = 60 * 60 * 1000;
  */
 const CACHE_PREFIX = 'wbgt_cache_v4_';
 
+/** Gemeinsamer Anfang aller Versionen – zum Aufraeumen ueberholter Eintraege. */
+const CACHE_FAMILY_PREFIX = 'wbgt_cache_';
+
 /** Anteil von Direktstrahlung und Untergrund-Offset, der bei der Beschattung wirkt. */
 export const SHADOW_FACTORS: Record<Shadow, number> = {
   none: 1.0,
@@ -449,7 +452,13 @@ function pruneCache(): void {
 
     for (let i = 0; i < window.localStorage.length; i++) {
       const key = window.localStorage.key(i);
-      if (!key?.startsWith(CACHE_PREFIX)) continue;
+      if (!key?.startsWith(CACHE_FAMILY_PREFIX)) continue;
+
+      // Eintraege aelterer Versionen liest niemand mehr – sofort entfernen
+      if (!key.startsWith(CACHE_PREFIX)) {
+        stale.push(key);
+        continue;
+      }
 
       try {
         const entry = JSON.parse(window.localStorage.getItem(key) ?? '') as CacheEntry;

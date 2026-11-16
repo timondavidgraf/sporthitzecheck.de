@@ -298,8 +298,9 @@ function RadarContent() {
         return;
       }
 
-      // DWD-Warnungen gibt es nur für die nächsten Tage – parallel zum Wetter
-      // abrufen, damit die Ampel nicht darauf wartet. Fehler ergeben null.
+      // DWD-Warnungen gibt es nur für die nächsten Tage. Der Abruf läuft neben
+      // dem Wetter her und wird unten nachgereicht – die Ampel wartet nie
+      // darauf. Fehler ergeben null.
       const sessionStart = new Date(startTime);
       const sessionEnd = new Date(endTime);
       const warningRelevant =
@@ -369,11 +370,19 @@ function RadarContent() {
           };
         });
 
-        const heatWarning = await heatWarningRequest;
+        if (cancelled) return;
+        const ready = {
+          status: "ready" as const,
+          forecast,
+          hoursAhead,
+          isReview,
+          comparison,
+        };
+        setState({ ...ready, heatWarning: null });
 
-        if (!cancelled) {
-          setState({ status: "ready", forecast, hoursAhead, isReview, heatWarning, comparison });
-        }
+        // Erst die Ampel zeigen, dann die Warnung ergänzen, sobald sie da ist
+        const heatWarning = await heatWarningRequest;
+        if (!cancelled && heatWarning) setState({ ...ready, heatWarning });
       } catch (err) {
         const offline = typeof navigator !== "undefined" && !navigator.onLine;
         // Offline ist ein Nutzungszustand, kein Bug – den nicht als Fehler melden.
