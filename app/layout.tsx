@@ -83,11 +83,9 @@ export const metadata: Metadata = {
     title: PAGE_TITLE,
     description: DESCRIPTION,
   },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
-  },
+  // Bewusst kein `robots`: ohne Angabe indexieren Suchmaschinen ohnehin. Ein
+  // globales „index, follow“ stünde auf 404-Seiten neben dem „noindex“, das
+  // Next.js dort setzt; /prognose schließt sich in seinem Layout selbst aus.
 };
 
 export const viewport: Viewport = {
